@@ -1,0 +1,718 @@
+<html lang="ja" data-bybit-channel-name="DbtUdFJxuWt0yyPRlHQjt" data-bybit-is-default-wallet="true">
+<!-- prwrc1000.jsp -->
+
+<head>
+    <title>品川区施設予約システム&nbsp;空き状況画面（日付順）</title>
+    <meta charset="Shift_JIS">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="shortcut icon" href="image/favicon.ico">
+    <link rel="stylesheet" href="css/jquery-ui.min.css">
+    <link rel="stylesheet" href="css/fgnp.min.css">
+    <link rel="stylesheet" href="css/fgnp-icons.css">
+    <link rel="stylesheet" href="css/combobox.css">
+    <link rel="stylesheet" href="css/prs_web_common.css">
+    <script src="js/lib/jquery-3.7.1.min.js"></script>
+    <script src="js/lib/jquery.cookie.js"></script>
+    <script src="js/lib/jquery-ui.min.js"></script>
+    <script src="js/lib/bootstrap.bundle.min.js"></script>
+    <script src="js/paw_combobox.js"></script>
+    <script src="js/paw_doaction.js"></script>
+    <script src="js/paw_errormsg.js"></script>
+    <script src="js/paw_common.js"></script>
+    <script src="js/paw_l100.js"></script>
+    <script src="js/prwrc1000.js"></script>
+    <script src="js/prwre1000.js"></script>
+    <script src="js/prwrf1000.js"></script>
+    <script src="js/paw_doajax.js"></script>
+    <script>
+        var gRsvWOpeInstSrchVacantAction = '/shinagawa/web/rsvWOpeInstSrchVacantAction.do';
+        var gRsvWOpeReservedApplyAction = '/shinagawa/web/rsvWOpeReservedApplyAction.do';
+        var gWOpeUnreservedDailyAction = '/shinagawa/web/rsvWOpeUnreservedDailyAction.do';
+        var gRsvWTransContactAction = '/shinagawa/web/rsvWTransContactAction.do';
+        var gRsvTransSiteMapAction = '/shinagawa/web/rsvWTransSiteMapAction.do';
+        var gRsvWTransMenuAction = '/shinagawa/web/rsvWUserAttestationPageMoveAction.do';
+        var gLotWOpeLotListAction = '/shinagawa/web/lotWOpeLotListAction.do';
+        var gRsvWTransUserRegistAction = '/shinagawa/web/rsvWTransUserRegistAction.do';
+        var gRsvWTransUserLoginAction = '/shinagawa/web/rsvWTransUserLoginAction.do';
+        var gRsvWTransUserAttestationEndAction = '/shinagawa/web/rsvWTransUserAttestationEndAction.do';
+        var gRsvWTransChgPasswdAction = '/shinagawa/web/rsvWTransChgPasswdAction.do';
+        var gRsvWTransSetMfaAction = '/shinagawa/web/rsvWTransSetMfaAction.do';
+        var gRsvWTransMailAddressRegistAction = '/shinagawa/web/rsvWTransMailAddressRegistAction.do';
+        var gRsvWGetFoundTransAction = '/shinagawa/web/rsvWGetFoundTransAction.do';
+        var gRsvWTransFavorite2InfoDispAction = '/shinagawa/web/rsvWTransFavorite2InfoDispAction.do';
+        var gRsvWTransFavorite2InfoAction = '/shinagawa/web/rsvWTransFavorite2InfoAction.do';
+        var gLotWRegistLotFavoriteInfoDispAction = '/shinagawa/web/lotWRegistLotFavoriteInfoDispAction.do';
+        var gLotWTransLotFavoriteInfoAction = '/shinagawa/web/lotWTransLotFavoriteInfoAction.do';
+        var gRsvWOpeHomeAction = '/shinagawa/web/rsvWOpeHomeAction.do';
+        var gRsvWGetCancelRsvDataAction = '/shinagawa/web/rsvWGetCancelRsvDataAction.do';
+        var gRsvWTransRsvEquipListAction = '/shinagawa/web/rsvWTransRsvEquipListAction.do';
+        var gLotWOpeLotSearchAction = '/shinagawa/web/lotWOpeLotSearchAction.do';
+        var gLotWTransLotCancelListAction = '/shinagawa/web/lotWTransLotCancelListAction.do';
+        var gLotWTransLotElectListAction = '/shinagawa/web/lotWTransLotElectListAction.do';
+        var gLotWTransLotComfirmListAction = '/shinagawa/web/lotWTransLotComfirmListAction.do';
+        var gRsvWTransEventSrchAction = '/shinagawa/web/rsvWTransEventSrchAction.do';
+        var gRsvWTransInstListAction = '/shinagawa/web/rsvWTransInstListAction.do';
+        var gRsvWTransUseGuideAction = '/shinagawa/web/rsvWTransUseGuideAction.do';
+        var gRsvCreditInitListAction = '/shinagawa/web/rsvWRsvGetNotPaymentRsvDataListAction.do';
+        var gRsvGetApprRcptDataListAction = '/shinagawa/web/rsvWRsvGetApprRcptDataListAction.do';
+        var gRsvWGetCancelHistoryRsvDataAction = '/shinagawa/web/rsvWGetCancelHistoryRsvDataAction.do';
+        var gRsvWTransAgentLoginAction = '/shinagawa/web/rsvWTransAgentLoginAction.do';
+    </script>
+</head>
+
+<body class="d-flex flex-column" onload="javascript:msgHide();javascript:errorMsg(&quot;&quot;, 0);startInitTimer();">
+    <script>
+        loadMsgWrite(this.document);
+        var penalty = 1;
+        var invalidflg = 1;
+    </script>
+    <div id="loadmsg" style="visibility: hidden;"><img src="image/bi_nowloading.gif" alt="loading" id="loadmsgimg"></div>
+    <div id="disp">
+        <div id="wrapper" class="flex-grow-1 flex-shrink-0 h-100 ">
+            <form name="form1" method="post" action="index.jsp" onsubmit="return false;" autocomplete="off">
+                <script src="js/pawzz1010.js"></script>
+                <div class="modal fade" id="envModal" tabindex="-1" role="dialog" aria-labelledby="envModalLabel">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="envModalLabel">ご利用環境</h5><button type="button" class="close" data-dismiss="modal" aria-label="閉じる"><span aria-hidden="true">×</span></button>
+                            </div>
+                            <div class="modal-body">
+                                <h4><span>対応ブラウザ</span></h4>
+                                <p>対応ブラウザは以下のとおりです。いずれも最新版のみ対応しています。</p>
+                                <h5><span>デスクトップブラウザ</span></h5>
+                                <ul style="padding: 0 20px;">
+                                    <li>Chrome</li>
+                                    <li>Firefox</li>
+                                    <li>Microsoft Edge</li>
+                                    <li>Safari （macOS のみ）</li>
+                                </ul>
+                                <h5><span>モバイルデバイス</span></h5>
+                                <ul style="padding: 0 20px;">
+                                    <li>Chrome for Android</li>
+                                    <li>iOS Safari</li>
+                                </ul>
+                            </div>
+                            <div class="modal-footer"><button type="button" class="btn btn-dark" data-dismiss="modal">閉じる</button></div>
+                        </div>
+                    </div>
+                </div>
+                <header class="navbar flex-column flex-grow-0 flex-shrink-0 animation thin" style="left: 0px;">
+                    <div class="w-100 d-flex">
+                        <div id="title" class="d-flex flex-row">
+                            <div id="title-left" class="d-flex flex-column">
+                                <div id="subtitle" class="mt-1 mb-2">品川区施設予約システム</div>
+                                <div>
+                                    <h1 class="font-weight-bold m-0"><a href="javascript:doAction(document.form1, gRsvWTransMenuAction);"><img id="title-icon" class="align-top" src="image/service_image.png" alt="しせつよやく"><span id="title-text-area">しせつよやく</span></a></h1>
+                                </div>
+                            </div>
+                            <div id="title_pana"></div>
+                            <div id="pc-dropdown" class="flex-row justify-content-center align-items-center flex-grow-0 flex-shrink-0">
+                                <div class="dropdown d-none fixed-dropdown d-table h-100" id="userMenu"><a class="btn btn-flat-dark dropdown-toggle d-table-cell align-middle" href="#" id="userName" data-toggle="dropdown" aria-expanded="false"><i class="fj-icon fj-icon-user"> </i><span>★紀平　俊矢 様</span></a>
+                                    <div class="dropdown-menu dropdown-menu-right"><a href="javascript:doAction(document.form1, gRsvWTransChgPasswdAction);" class="dropdown-item">パスワード変更</a><a href="javascript:doAction(document.form1, gRsvWTransSetMfaAction);" class="dropdown-item">多要素認証設定</a><a href="javascript:doAction(document.form1, gRsvWTransMailAddressRegistAction);" class="dropdown-item">メールアドレス登録</a>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gRsvWGetFoundTransAction);" class="dropdown-item">口座振替結果の確認</a>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gRsvGetApprRcptDataListAction);" class="dropdown-item">承認書ダウンロード</a>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gRsvWTransFavorite2InfoDispAction);" class="dropdown-item">予約お気に入り登録</a><a href="javascript:doAction(document.form1, gRsvWTransFavorite2InfoAction);" class="dropdown-item">予約お気に入り変更・削除</a>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gLotWRegistLotFavoriteInfoDispAction);" class="dropdown-item">抽選お気に入り登録</a><a href="javascript:doAction(document.form1, gLotWTransLotFavoriteInfoAction);" class="dropdown-item">抽選お気に入り変更・削除</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="sp-dropdown">
+                                <div class="dropdown bg-white"><a href="#" class="btn btn-flat-dark" data-toggle="dropdown"><span class="collapse-icon collapse-icon-menu" aria-hidden="true"></span><span class="sr-only">ドロップダウンメニュー</span></a>
+                                    <div class="dropdown-menu dropdown-menu-right px-2"><span class="dropdown-item-text font-weight-bold"><i class="fj-icon fj-icon-user"> </i>★紀平　俊矢 様</span>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gRsvWTransChgPasswdAction);" class="dropdown-item">パスワード変更</a><a href="javascript:doAction(document.form1, gRsvWTransSetMfaAction);" class="dropdown-item">多要素認証設定</a><a href="javascript:doAction(document.form1, gRsvWTransMailAddressRegistAction);" class="dropdown-item">メールアドレス登録</a>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gRsvWGetFoundTransAction);" class="dropdown-item">口座振替結果の確認</a>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gRsvGetApprRcptDataListAction);" class="dropdown-item">承認書ダウンロード</a>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gRsvWTransFavorite2InfoDispAction);" class="dropdown-item">予約お気に入り登録</a><a href="javascript:doAction(document.form1, gRsvWTransFavorite2InfoAction);" class="dropdown-item">予約お気に入り変更・削除</a>
+                                        <div role="separator" class="dropdown-divider"></div><a href="javascript:doAction(document.form1, gLotWRegistLotFavoriteInfoDispAction);" class="dropdown-item">抽選お気に入り登録</a><a href="javascript:doAction(document.form1, gLotWTransLotFavoriteInfoAction);" class="dropdown-item">抽選お気に入り変更・削除</a>
+                                    </div>
+                                </div>
+                            </div><button type="button" id="btn-logout" class="btn btn-sm btn-dark m-auto logoutbtn" onclick="javascript:doAction(document.form1, gRsvWTransUserAttestationEndAction);">ログアウト</button>
+                            <div id="right-lable" class="validend"><label style="color: black;">有効期限：2027年12月17日</label></div>
+                        </div>
+                        <div id="nav-menu-area">
+                            <div id="nav-menu">
+                                <nav class="nav nav-lines nav-lines-compact m-0"><a id="nav-home" class="nav-item nav-link d-flex align-items-center " aria-current="page" href="javascript:doAction(document.form1, gRsvWOpeHomeAction);">
+                                        <div class="m-auto"><svg version="1.1" id="home-ic" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 32 32" style="enable-background:new 0 0 32 32;" xml:space="preserve">
+                                                <style type="text/css">
+                                                    .st0 {
+                                                        fill: none;
+                                                    }
+                                                </style>
+                                                <rect class="st0" width="32" height="32"></rect>
+                                                <g id="nav-home-ic">
+                                                    <path d="M16,1.9722L1.9861,15.9861H6V30h6v-8h8v8h6V15.9861h4.0139L16,1.9722z"></path>
+                                                </g>
+                                            </svg><span class="font-weight-normal">ホーム</span></div>
+                                    </a>
+                                    <div class="nav-item dropdown d-table h-100  active"> <a class="nav-link dropdown-toggle m-auto d-table-cell align-middle" href="#" onclick="javascript:doMsgListAction(document.form1);" data-toggle="dropdown" aria-expanded="false"><svg version="1.1" id="reservation-ic" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 32 32" style="enable-background:new 0 0 32 32;" xml:space="preserve">
+                                                <style type="text/css">
+                                                    .st0 {
+                                                        fill: none;
+                                                    }
+                                                </style>
+                                                <rect class="st0" width="32" height="32"></rect>
+                                                <g id="nav-reservation">
+                                                    <rect x="7" y="15" width="3" height="3"></rect>
+                                                    <rect x="22" y="15" width="3" height="3"></rect>
+                                                    <rect x="7" y="20" width="3" height="3"></rect>
+                                                    <rect x="12" y="20" width="3" height="3"></rect>
+                                                    <rect x="17" y="20" width="3" height="3"></rect>
+                                                    <rect x="22" y="20" width="3" height="3"></rect>
+                                                    <polygon points="28,10.0499 28,25 4,25 4,9 14.9606,9 19.9606,4 1,4 1,28 31,28 31,7.05"></polygon>
+                                                    <rect x="26.6833" y="0.2821" transform="matrix(0.7071 -0.7071 0.7071 0.7071 6.1198 20.6944)" width="2.7139" height="5.3555"></rect>
+                                                    <polygon points="23.8337,3.3794 13.0068,14.2063 13.0002,18 16.7939,17.9933 27.6209,7.1664 "></polygon>
+                                                </g>
+                                            </svg><span class="font-weight-normal">予約</span></a>
+                                        <div class="dropdown-menu px-2"><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvWOpeHomeAction + '#free-search');">空き検索</a><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvWGetCancelRsvDataAction);">予約の確認・取消</a><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvWGetCancelHistoryRsvDataAction);">取消履歴</a>
+                                            <div role="separator" class="dropdown-divider"></div><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvCreditInitListAction);">未入金予約の確認・支払</a>
+                                            <div role="separator" class="dropdown-divider"></div><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvWTransRsvEquipListAction);">設備の予約</a>
+                                        </div>
+                                    </div>
+                                    <div class="nav-item dropdown d-table h-100 "> <a class="nav-link dropdown-toggle m-auto d-table-cell align-middle" href="#" onclick="javascript:doMsgListAction(document.form1);" data-toggle="dropdown" aria-expanded="false"><svg version="1.1" id="lottery-ic" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 32 32" style="enable-background:new 0 0 32 32;" xml:space="preserve">
+                                                <style type="text/css">
+                                                    .st0 {
+                                                        fill: none;
+                                                    }
+                                                </style>
+                                                <rect class="st0" width="32" height="32"></rect>
+                                                <g id="nav-lottery">
+                                                    <path d="M28.6715,11.1066l-0.5858,0.5858h-0.8284h-1.5072c0.5851,1.319,0.9166,2.7743,0.9166,4.3076  c0,5.8816-4.7852,10.6666-10.6667,10.6666S5.3334,21.8816,5.3334,16c0-5.8817,4.785-10.6667,10.6666-10.6667  c1.5333,0,2.9886,0.3315,4.3076,0.9166V4.7426V3.9142l0.5858-0.5858l0.316-0.3161C19.598,2.3652,17.8428,2,16,2  C8.2681,2,2,8.268,2,16c0,7.7319,6.2681,14,14,14s14-6.2681,14-14c0-1.8429-0.3652-3.598-1.0123-5.2095L28.6715,11.1066z"></path>
+                                                    <path d="M16,20.0833c-1.1249,0-2.1448-0.4574-2.884-1.1957l-0.0043,0.0006l0.0006-0.0043  C12.374,18.1447,11.9167,17.1248,11.9167,16c0-2.0721,1.5569-3.7698,3.5591-4.0303l2.6417-2.6418C17.4493,9.116,16.7384,9,16,9  c-3.866,0-7,3.134-7,7s3.134,7,7,7s7-3.134,7-7c0-0.7384-0.116-1.4493-0.3279-2.1176l-2.6418,2.6418  C19.7698,18.5264,18.072,20.0833,16,20.0833z"></path>
+                                                    <path d="M31.5,5.4497h-3.2235l0.0112-0.0112c0.3177-0.3178,0.3177-0.833,0-1.1508l-0.5754-0.5754  c-0.3177-0.3177-0.833-0.3177-1.1508,0l-0.0113,0.0113V0.5l-4.2426,4.2426v3.2236l-6.5511,6.5511l-0.2877,2.0139l2.0139-0.2877  l6.5511-6.5511h3.2236L31.5,5.4497z"></path>
+                                                </g>
+                                            </svg><span class="font-weight-normal">抽選</span></a>
+                                        <div class="dropdown-menu px-2"><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gLotWOpeLotSearchAction);">抽選の申込み</a><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gLotWTransLotCancelListAction);">抽選申込の確認・取消</a>
+                                            <div role="separator" class="dropdown-divider"></div><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gLotWTransLotElectListAction);">抽選結果の確認・利用確定</a><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gLotWTransLotComfirmListAction);">利用確定済の当選確認</a>
+                                        </div>
+                                    </div>
+                                    <div class="nav-item dropdown d-table h-100 "><a id="nav-other" class="nav-link dropdown-toggle m-auto d-table-cell align-middle" href="#" data-toggle="dropdown" aria-expanded="false"><svg width="32" height="32" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                                                <path d="M0,15h6V9H0V15z M0,27h6v-6H0V27z M0,39h6v-6H0V39z M12,27h36v-6H12V27z M12,39h36v-6H12V39z M12,9v6h36V9H12z"></path>
+                                            </svg><span class="font-weight-normal">その他</span></a>
+                                        <div class="dropdown-menu px-2"><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvWTransUseGuideAction);">ご利用ガイド</a><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvWTransInstListAction);">館・施設一覧</a>
+                                            <div role="separator" class="dropdown-divider"></div><a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvWTransEventSrchAction);">イベント検索</a>
+                                            <div role="separator" class="dropdown-divider"></div> <a class="dropdown-item font-weight-normal" href="javascript:doAction(document.form1, gRsvTransSiteMapAction);">サイトマップ</a><a class="dropdown-item font-weight-normal" href="#envModal" data-toggle="modal">利用環境</a>
+                                            <div role="separator" class="dropdown-divider"></div><a class="dropdown-item font-weight-normal" href="https://www.city.shinagawa.tokyo.jp/contentshozon2025/operationManual.pdf" target="_blank">操作マニュアル</a>
+                                        </div>
+                                    </div>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+                <main id="prwrc1000">
+                    <div id="contents">
+                        <article id="free-search" class="padding-small-y">
+                            <div class="common-area">
+                                <h2 class="eyecatch eyecatch-left">空き状況<a class="icon-help" data-toggle="collapse" href="#text-description" aria-expanded="false" aria-controls="text-description"><i class="fj-icon fj-icon-help fj-icon-24 ml-5" title="ヘルプ"><span class="sr-only">ヘルプ</span></i></a></h2>
+                                <div id="text-description" class="collapse">
+                                    <div class="d-flex flex-wrap text-description align-items-center">
+                                        <div class="mt-1">[施設ごと]タブで施設ごとの空き状況を表示します。</div>
+                                        <div class="mt-1">[日付順]タブで空いている時間帯の一覧を表示します。</div>
+                                        <div class="mt-1">検索条件を変えるには<a class="link-in-page" href="#change-condition"><span class="badge badge-btn-light">条件変更</span></a>ボタンをクリックし、</div>
+                                        <div class="mt-1">条件変更後に<a class="link-in-page" href="#btn-search"><span class="badge badge-btn-go">再検索</span></a>ボタンをクリックします。</div>
+                                    </div>
+                                </div>
+                                <div id="wrap-up" class="d-flex font-middle">
+                                    <div class="free-search-title flex-grow-0 flex-shrink-0">指定条件</div>
+                                    <div id="searchCondition" class="free-search-info flex-grow-1 flex-shrink-1 bg-white p-2 mr-1"><b>今日～</b>、<span class="font-weight-bold">八潮北公園</span>で<span class="font-weight-bold">テニス</span>をする。(1か月表示)</div><button id="change-condition" type="button" class="btn flex-grow-0 flex-shrink-0 btn-light mt-2 ml-auto" data-toggle="collapse" data-target="#free-search-cond" aria-expanded="false"><span class="collapse-icon collapse-icon-down" aria-hidden="true"></span>条件変更</button>
+                                </div>
+                            </div>
+                            <div id="free-search-cond" class="collapse padding-small-y">
+                                <!-- prwre1000.jsp -->
+                                <script>
+                                    var gRsvWOpeUnreservedSearchBuildAjaxAction = '/shinagawa/web/rsvWOpeUnreservedSearchBuildAjaxAction.do';
+                                </script>
+                                <div id="favorite-rule" class="d-flex">
+                                    <div class="free-search-title flex-grow-0 flex-shrink-0 font-middle">お気に入り条件</div>
+                                    <div class="free-search-info flex-grow-1 flex-shrink-1 d-flex flex-wrap"><input type="radio" name="favorite" id="fav0" onclick="setFavorite(&quot;1400_1010&quot;,&quot;10100010&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav0" title="しながわ中央公園 庭球場Ａでテニスをする。">中央</label><input type="radio" name="favorite" id="fav1" onclick="setFavorite(&quot;1500_1030&quot;,&quot;10300010&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav1" title="八潮北公園 庭球場Ａでテニスをする。">八潮Ａ</label><input type="radio" name="favorite" id="fav2" onclick="setFavorite(&quot;1500_1030&quot;,&quot;10300020&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav2" title="八潮北公園 庭球場Ｂでテニスをする。">八潮Ｂ</label><input type="radio" name="favorite" id="fav3" onclick="setFavorite(&quot;1500_1030&quot;,&quot;10300030&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav3" title="八潮北公園 庭球場Ｃでテニスをする。">八潮Ｃ</label><input type="radio" name="favorite" id="fav4" onclick="setFavorite(&quot;1500_1030&quot;,&quot;10300040&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav4" title="八潮北公園 庭球場Ｄでテニスをする。">八潮Ｄ</label><input type="radio" name="favorite" id="fav5" onclick="setFavorite(&quot;1500_1030&quot;,&quot;10300050&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav5" title="八潮北公園 庭球場Ｅでテニスをする。">八潮Ｅ</label><input type="radio" name="favorite" id="fav6" onclick="setFavorite(&quot;1200_1040&quot;,&quot;10400010&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav6" title="しながわ区民公園 庭球場Ａでテニスをする。">区民Ａ</label><input type="radio" name="favorite" id="fav7" onclick="setFavorite(&quot;1200_1040&quot;,&quot;10400020&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav7" title="しながわ区民公園 庭球場Ｂでテニスをする。">区民Ｂ</label><input type="radio" name="favorite" id="fav8" onclick="setFavorite(&quot;1200_1040&quot;,&quot;10400030&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav8" title="しながわ区民公園 庭球場Ｃでテニスをする。">区民Ｃ</label><input type="radio" name="favorite" id="fav9" onclick="setFavorite(&quot;1200_1040&quot;,&quot;10400040&quot;,&quot;31000000_31011700&quot;);$('#btn-search').focus();"><label class="btn btn-light flex-grow-0 flex-shrink-1 mb-2 pr-6 radiobtn" for="fav9" title="しながわ区民公園 庭球場Ｄでテニスをする。">区民Ｄ</label></div>
+                                </div>
+                                <div id="search-rule" class="d-flex">
+                                    <div class="free-search-title flex-grow-0 flex-shrink-0 font-middle">検索条件</div>
+                                    <div class="free-search-info flex-grow-1 flex-shrink-1 d-flex flex-column">
+                                        <div id="when">
+                                            <p class="d-flex flex-row"><span class="flex-grow-0 flex-shrink-0 search-category-title"><button id="collapse-when" class="btn btn-light collapsed" type="button" data-toggle="collapse" data-target="#collapseWhen" aria-expanded="false" aria-controls="collapseWhen" aria-label="詳細表示"><span class="collapse-icon collapse-icon-down" aria-hidden="true"></span></button><label id="when-check-area-label" class="font-middle align-middle">いつ</label></span><span id="when-check-area" class="flex-grow-1 flex-shrink-1 search-category-choices"><input type="radio" name="date" id="today" value="1" onclick="setToday();"><label class="btn radiobtn" for="today">今日</label><input type="radio" name="date" id="tomorrow" value="2" onclick="setTomorrow();"><label class="btn radiobtn" for="tomorrow">明日</label><input type="radio" name="date" id="thisweek" value="3" onclick="setThisWeek();"><label class="btn radiobtn" for="thisweek">1週間</label><input type="radio" name="date" id="thismonth" value="4" onclick="setThisMonth();" checked=""><label class="btn radiobtn" for="thismonth">1か月</label></span></p>
+                                            <div class="collapse search-category" id="collapseWhen">
+                                                <div id="start-date" class="d-flex flex-row align-items-center"><label class="flex-grow-0 flex-shrink-0 search-category-name" for="daystart">開始日</label><span class="flex-grow-1 flex-shrink-1 search-category-choices d-flex flex-row align-items-center"><input id="daystart" type="date" class="form-control h-auto mr-2" name="daystart" value="2025-12-29"></span></div>
+                                                <div class="d-flex flex-row align-items-center"><label class="flex-grow-0 flex-shrink-0 search-category-name" for="days">期間</label><span class="flex-grow-1 flex-shrink-1 search-category-choices"><span class="select-form"><select id="days" name="days" class="custom-select w-auto">
+                                                                <option value="1">1日</option>
+                                                                <option value="2">2日間</option>
+                                                                <option value="3">3日間</option>
+                                                                <option value="7">1週間</option>
+                                                                <option value="31" selected="">1か月</option>
+                                                            </select></span></span></div>
+                                                <div class="d-flex flex-row align-items-center"><label id="day-check-area-label" class="flex-grow-0 flex-shrink-0 search-category-name">曜日</label>
+                                                    <div id="day-check-area" class="flex-grow-1 flex-shrink-1 search-category-choices"><input type="checkbox" name="dayofweek" id="monday" value="1"><label class="btn checkboxbtn" for="monday">月</label><input type="checkbox" name="dayofweek" id="tuesday" value="2"><label class="btn checkboxbtn" for="tuesday">火</label><input type="checkbox" name="dayofweek" id="wednesday" value="3"><label class="btn checkboxbtn" for="wednesday">水</label><input type="checkbox" name="dayofweek" id="thursday" value="4"><label class="btn checkboxbtn" for="thursday">木</label><input type="checkbox" name="dayofweek" id="friday" value="5"><label class="btn checkboxbtn" for="friday">金</label><input type="checkbox" name="dayofweek" id="saturday" value="6"><label class="btn checkboxbtn" for="saturday">土</label><input type="checkbox" name="dayofweek" id="sunday" value="7"><label class="btn checkboxbtn" for="sunday">日</label><input type="checkbox" name="dayofweek" id="holiday" value="9"><label class="btn checkboxbtn" for="holiday">祝</label><input type="hidden" name="dayofweekClearFlg" value="0" id="dayofweekClearFlg"></div>
+                                                </div>
+                                                <div class="d-flex flex-row align-items-center"><label id="timezone-check-area-label" class="flex-grow-0 flex-shrink-0 search-category-name">時間帯</label>
+                                                    <div id="timezone-check-area" class="flex-grow-1 flex-shrink-1 search-category-choices"><input type="checkbox" name="timezone" id="allday" onclick="setAllDay();" value="9"><label class="btn checkboxbtn" for="allday">終日</label><input type="checkbox" name="timezone" id="morning" onclick="setMorning();" value="1"><label class="btn checkboxbtn" for="morning">午前</label><input type="checkbox" name="timezone" id="afternoon" onclick="setAfternoon();" value="2"><label class="btn checkboxbtn" for="afternoon">午後</label><input type="checkbox" name="timezone" id="evening" onclick="setEvening();" value="3"><label class="btn checkboxbtn" for="evening">夜間</label><input type="hidden" name="timezoneClearFlg" value="0" id="timezoneClearFlg"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="where">
+                                            <p class="d-flex flex-row"><span class="flex-grow-0 flex-shrink-0 search-category-title"><button id="collapse-where" class="btn btn-light collapsed" type="button" data-toggle="collapse" data-target="#collapseWhere" aria-expanded="false" aria-controls="collapseWhere" aria-label="詳細表示"><span class="collapse-icon collapse-icon-down" aria-hidden="true"></span></button><label class="font-middle align-middle" for="bname">どこで</label></span><span class="flex-grow-1 flex-shrink-1 search-category-choices"><span class="select-form-for-custom-select select-form"><select id="bname" class="custom-select" onchange="filterInst()">
+                                                            <option value="0">選択してください。</option>
+                                                            <optgroup label="大井地区">
+                                                                <option value="1200_0" data-areacd="1200" data-bldcd="0">大井地区(すべて)</option>
+                                                                <option value="1200_1040" data-areacd="1200" data-bldcd="1040">しながわ区民公園</option>
+                                                            </optgroup>
+                                                            <optgroup label="品川地区">
+                                                                <option value="1400_0" data-areacd="1400" data-bldcd="0">品川地区(すべて)</option>
+                                                                <option value="1400_1010" data-areacd="1400" data-bldcd="1010">しながわ中央公園</option>
+                                                                <option value="1400_1020" data-areacd="1400" data-bldcd="1020">東品川公園</option>
+                                                                <option value="1400_1050" data-areacd="1400" data-bldcd="1050">天王洲公園</option>
+                                                            </optgroup>
+                                                            <optgroup label="八潮地区">
+                                                                <option value="1500_0" data-areacd="1500" data-bldcd="0">八潮地区(すべて)</option>
+                                                                <option value="1500_1030" data-areacd="1500" data-bldcd="1030" selected="">八潮北公園</option>
+                                                            </optgroup>
+                                                        </select><input type="hidden" name="selectAreaBcd" id="selectAreaBcd" value="1500_1030"></span></span></p>
+                                            <div class="collapse search-category" id="collapseWhere">
+                                                <div class="d-flex flex-row align-items-center"><label class="flex-grow-0 flex-shrink-0 search-category-name" for="iname">施設</label><span class="flex-grow-1 flex-shrink-1 search-category-choices"><span class="select-form"><select id="iname" class="custom-select">
+                                                                <option value="0">指定なし</option>
+                                                                <option value="10300010">庭球場Ａ</option>
+                                                                <option value="10300020">庭球場Ｂ</option>
+                                                                <option value="10300030">庭球場Ｃ</option>
+                                                                <option value="10300040">庭球場Ｄ</option>
+                                                                <option value="10300050">庭球場Ｅ</option>
+                                                            </select><input type="hidden" name="selectIcd" id="selectIcd" value="0"></span></span></div>
+                                            </div>
+                                        </div>
+                                        <div id="what" class="d-flex flex-row align-items-center"><label class="flex-grow-0 flex-shrink-0 font-middle m-auto search-category-title" for="purpose">何をする</label><span class="flex-grow-1 flex-shrink-1 search-category-choices"><span class="select-form-for-custom-select select-form"><select id="purpose" class="custom-select">
+                                                        <option value="0">選択してください。</option>
+                                                        <optgroup label="文化・スポーツ">
+                                                            <option value="31000000_31000100">会議・会合・研修</option>
+                                                            <option value="31000000_31011700" selected="">テニス</option>
+                                                        </optgroup>
+                                                    </select><input type="hidden" name="selectPpsClPpscd" id="selectPpsClPpscd" value="31000000_31011700"></span></span></div>
+                                    </div>
+                                </div><input type="hidden" name="e430000" value="地域または館が指定されていません。[どこで：]を選択して下さい。"><input type="hidden" name="e430010" value="利用目的が指定されていません。[何をする：]を選択して下さい。"><input type="hidden" name="e430020" value="開始日の入力に誤りがあります。正しい日付を入力して下さい。"><input type="hidden" name="ValidEndPWYMD" value="20351224"><input type="hidden" name="e150990" value="パスワード有効期限が切れています。パスワード変更操作を行って下さい。"><input type="hidden" name="lYear" value="年"><input type="hidden" name="lMonth" value="月"><input type="hidden" name="lDay" value="日"><input type="hidden" name="lToday" value="今日"><input type="hidden" name="lTomorrow" value="明日"><input type="hidden" name="lThisweek" value="1週間"><input type="hidden" name="lThismonth" value="1か月"><input type="hidden" name="lMonday" value="月"><input type="hidden" name="lTuesday" value="火"><input type="hidden" name="lWednesday" value="水"><input type="hidden" name="lThursday" value="木"><input type="hidden" name="lFriday" value="金"><input type="hidden" name="lSaturday" value="土"><input type="hidden" name="lSunday" value="日"><input type="hidden" name="lAllday" value="終日"><input type="hidden" name="lMorning" value="午前"><input type="hidden" name="lAfternoon" value="午後"><input type="hidden" name="lEvening" value="夜間"><input type="hidden" name="lField" value="面"><input type="hidden" name="item540" value="指定なし">
+                                <div class="text-center"><button id="btn-search" type="button" class="form-control btn btn-go btn-lg my-2" onclick="javascript:doSearch(document.form1, gWOpeUnreservedDailyAction);"><i class="fj-icon fj-icon-search"> </i>再検索</button></div>
+                            </div>
+                        </article>
+                        <ul id="free-info-nav" class="nav nav-tabs">
+                            <li class="nav-item"><a href="javascript:doAction(document.form1, gRsvWOpeInstSrchVacantAction);" class="nav-link font-middle font-weight-normal text-center m-0">施設ごと</a></li>
+                            <li class="nav-item"><a href="javascript:void(0);" class="nav-link font-middle font-weight-normal text-center m-0 active">日付順</a></li>
+                        </ul>
+                        <div id="sort-date">
+                            <!-- prwrf1000.jsp -->
+                            <script>
+                                var formAction = "/shinagawa/web/rsvWOpeUnreservedSearchAjaxAction.do";
+                                var formData = {
+                                    "date": 4,
+                                    "timezoneClearFlg": 0,
+                                    "displayNo": "prwrc2000",
+                                    "offset": 0,
+                                    "timezone": [],
+                                    "dayofweekClearFlg": 0,
+                                    "daystart": "2025-12-29",
+                                    "selectPpsClPpscd": "31000000_31011700",
+                                    "limit": 5,
+                                    "days": 31,
+                                    "dayofweek": [],
+                                    "selectIcd": "0",
+                                    "selectAreaBcd": "1500_1030"
+                                };
+                                var listMax = 100;
+                                var display = "aki";
+                            </script>
+                            <div id="unreserved-notfound" class="display-none">
+                                <div class="d-flex flex-wrap text-content px-3">
+                                    <div class="mt-1">指定条件に該当する空き施設が見つかりませんでした。</div>
+                                    <div class="mt-1">条件を変更し、再度、検索してください。</div>
+                                </div>
+                            </div>
+                            <div id="unreserved-list" class="display-block">
+                                <div class="d-flex flex-wrap text-content px-3">
+                                    <div class="mt-1">指定条件に合致した空き状況を表示しています。</div>
+                                    <div class="mt-1">利用する施設・日時の<span class="badge badge-btn-go">予約</span>ボタンをクリックします。</div>
+                                </div>
+                                <div class="d-flex justify-content-end mt-2"><button type="button" class="btn btn-sm btn-light float-right mr-3" onclick="openAll();">すべて開く</button><button type="button" class="btn btn-sm btn-light float-right mr-3" onclick="closeAll();">すべて閉じる</button></div>
+                                <div id="unreserved-loaded" class="ajaxloaded">
+                                    <div id="unreserved-loading" class="ajaxloading" style="width: 960px; height: 46.0156px; display: none;"><br><img src="image/bi_nowloading.gif" alt="読み込み中"><br></div>
+                                    <div id="unreserved-table">
+                                        <h3 id="20260105"><button id="b_20260105" class="btn btn-light" type="button" data-toggle="collapse" data-target="#free-info-0" aria-expanded="true" aria-controls="free-info-0" aria-label="詳細表示"><span class="collapse-icon collapse-icon-down" aria-hidden="true"></span></button><a id="a_20260105" data-toggle="collapse" href="#free-info-0" aria-expanded="true" aria-controls="free-info-0" aria-label="詳細表示"><span id="as_20260105" class="align-middle"><span id="ass0_20260105" class="font-middle">1月5日</span><span id="ass1_20260105" class="font-default"><span id="ass1s0_20260105" class="date-w">(月曜)</span><span id="ass1s1_20260105" class="date-y">2026年</span></span></span></a></h3>
+                                        <div id="free-info-0" class="free-info collapse show">
+                                            <table id="dt_free-info-0" class="table free-info-tb">
+                                                <thead class="text-center">
+                                                    <tr>
+                                                        <th scope="col">館</th>
+                                                        <th scope="col">施設</th>
+                                                        <th scope="col">時間帯</th>
+                                                        <th scope="col">予約</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr id="20260105_1030_10300030_1700_0">
+                                                        <td id="20260105_1030_10300030_1700_0_t0" class="mansion font-middle"><a href="https://www.city.shinagawa.tokyo.jp/contentshozon2019/yashiokita.pdf" target="new_window">八潮北公園</a></td>
+                                                        <td id="20260105_1030_10300030_1700_0_t1" class="facility font-middle"><a href="javascript:doVacantDisp(20260105, 1030, 10300030)">庭球場Ｃ</a></td>
+                                                        <td id="20260105_1030_10300030_1700_0_t2" class="timezone">
+                                                            <div id="20260105_1030_10300030_1700_0_t2d" class="d-flex flex-row align-items-center">
+                                                                <div class="flex-grow-0 flex-shrink-0 timezone-text font-middle">17時00分～19時00分</div>
+                                                                <div class="w-100 time-gc-area m-auto flex-grow-1 flex-shrink-1 timezonechart" data-starttime="17:00" data-endtime="19:00">
+                                                                    <table class="table time-gc-cell ml-2" style="border: none;" aria-hidden="true">
+                                                                        <thead class="border-0">
+                                                                            <tr>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">0</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">6</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">12</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">18</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">24</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <tr>
+                                                                                <td class="bg-white border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="bg-white border-white"></td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td id="20260105_1030_10300030_1700_0_t3" class="reservation"><button class="btn btn-go m-auto" type="button" onclick="doReserved(20260105,'1030','10300030',50,1700,1900,31000000,31011700,'','',0,'50','1700','1900');">予約</button></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <h3 id="20260106"><button id="b_20260106" class="btn btn-light" type="button" data-toggle="collapse" data-target="#free-info-1" aria-expanded="true" aria-controls="free-info-1" aria-label="詳細表示"><span class="collapse-icon collapse-icon-down" aria-hidden="true"></span></button><a id="a_20260106" data-toggle="collapse" href="#free-info-1" aria-expanded="true" aria-controls="free-info-1" aria-label="詳細表示"><span id="as_20260106" class="align-middle"><span id="ass0_20260106" class="font-middle">1月6日</span><span id="ass1_20260106" class="font-default"><span id="ass1s0_20260106" class="date-w">(火曜)</span><span id="ass1s1_20260106" class="date-y">2026年</span></span></span></a></h3>
+                                        <div id="free-info-1" class="free-info collapse show">
+                                            <table id="dt_free-info-1" class="table free-info-tb">
+                                                <thead class="text-center">
+                                                    <tr>
+                                                        <th scope="col">館</th>
+                                                        <th scope="col">施設</th>
+                                                        <th scope="col">時間帯</th>
+                                                        <th scope="col">予約</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr id="20260106_1030_10300020_900_1">
+                                                        <td id="20260106_1030_10300020_900_1_t0" class="mansion font-middle"><a href="https://www.city.shinagawa.tokyo.jp/contentshozon2019/yashiokita.pdf" target="new_window">八潮北公園</a></td>
+                                                        <td id="20260106_1030_10300020_900_1_t1" class="facility font-middle"><a href="javascript:doVacantDisp(20260106, 1030, 10300020)">庭球場Ｂ</a></td>
+                                                        <td id="20260106_1030_10300020_900_1_t2" class="timezone">
+                                                            <div id="20260106_1030_10300020_900_1_t2d" class="d-flex flex-row align-items-center">
+                                                                <div class="flex-grow-0 flex-shrink-0 timezone-text font-middle">09時00分～11時00分</div>
+                                                                <div class="w-100 time-gc-area m-auto flex-grow-1 flex-shrink-1 timezonechart" data-starttime="09:00" data-endtime="11:00">
+                                                                    <table class="table time-gc-cell ml-2" style="border: none;" aria-hidden="true">
+                                                                        <thead class="border-0">
+                                                                            <tr>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">0</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">6</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">12</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">18</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">24</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <tr>
+                                                                                <td class="bg-white border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="bg-white border-white"></td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td id="20260106_1030_10300020_900_1_t3" class="reservation"><button class="btn btn-go m-auto" type="button" onclick="doReserved(20260106,'1030','10300020',10,900,1100,31000000,31011700,'','',0,'10','900','1100');">予約</button></td>
+                                                    </tr>
+                                                    <tr id="20260106_1030_10300030_900_2">
+                                                        <td id="20260106_1030_10300030_900_2_t0" class="mansion font-middle"><a href="https://www.city.shinagawa.tokyo.jp/contentshozon2019/yashiokita.pdf" target="new_window">八潮北公園</a></td>
+                                                        <td id="20260106_1030_10300030_900_2_t1" class="facility font-middle"><a href="javascript:doVacantDisp(20260106, 1030, 10300030)">庭球場Ｃ</a></td>
+                                                        <td id="20260106_1030_10300030_900_2_t2" class="timezone">
+                                                            <div id="20260106_1030_10300030_900_2_t2d" class="d-flex flex-row align-items-center">
+                                                                <div class="flex-grow-0 flex-shrink-0 timezone-text font-middle">09時00分～11時00分</div>
+                                                                <div class="w-100 time-gc-area m-auto flex-grow-1 flex-shrink-1 timezonechart" data-starttime="09:00" data-endtime="11:00">
+                                                                    <table class="table time-gc-cell ml-2" style="border: none;" aria-hidden="true">
+                                                                        <thead class="border-0">
+                                                                            <tr>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">0</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">6</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">12</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">18</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">24</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <tr>
+                                                                                <td class="bg-white border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="bg-white border-white"></td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td id="20260106_1030_10300030_900_2_t3" class="reservation"><button class="btn btn-go m-auto" type="button" onclick="doReserved(20260106,'1030','10300030',10,900,1100,31000000,31011700,'','',0,'10','900','1100');">予約</button></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <h3 id="20260107"><button id="b_20260107" class="btn btn-light" type="button" data-toggle="collapse" data-target="#free-info-3" aria-expanded="true" aria-controls="free-info-3" aria-label="詳細表示"><span class="collapse-icon collapse-icon-down" aria-hidden="true"></span></button><a id="a_20260107" data-toggle="collapse" href="#free-info-3" aria-expanded="true" aria-controls="free-info-3" aria-label="詳細表示"><span id="as_20260107" class="align-middle"><span id="ass0_20260107" class="font-middle">1月7日</span><span id="ass1_20260107" class="font-default"><span id="ass1s0_20260107" class="date-w">(水曜)</span><span id="ass1s1_20260107" class="date-y">2026年</span></span></span></a></h3>
+                                        <div id="free-info-3" class="free-info collapse show">
+                                            <table id="dt_free-info-3" class="table free-info-tb">
+                                                <thead class="text-center">
+                                                    <tr>
+                                                        <th scope="col">館</th>
+                                                        <th scope="col">施設</th>
+                                                        <th scope="col">時間帯</th>
+                                                        <th scope="col">予約</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr id="20260107_1030_10300050_1700_3">
+                                                        <td id="20260107_1030_10300050_1700_3_t0" class="mansion font-middle"><a href="https://www.city.shinagawa.tokyo.jp/contentshozon2019/yashiokita.pdf" target="new_window">八潮北公園</a></td>
+                                                        <td id="20260107_1030_10300050_1700_3_t1" class="facility font-middle"><a href="javascript:doVacantDisp(20260107, 1030, 10300050)">庭球場Ｅ</a></td>
+                                                        <td id="20260107_1030_10300050_1700_3_t2" class="timezone">
+                                                            <div id="20260107_1030_10300050_1700_3_t2d" class="d-flex flex-row align-items-center">
+                                                                <div class="flex-grow-0 flex-shrink-0 timezone-text font-middle">17時00分～19時00分</div>
+                                                                <div class="w-100 time-gc-area m-auto flex-grow-1 flex-shrink-1 timezonechart" data-starttime="17:00" data-endtime="19:00">
+                                                                    <table class="table time-gc-cell ml-2" style="border: none;" aria-hidden="true">
+                                                                        <thead class="border-0">
+                                                                            <tr>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">0</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">6</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">12</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">18</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">24</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <tr>
+                                                                                <td class="bg-white border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="bg-white border-white"></td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td id="20260107_1030_10300050_1700_3_t3" class="reservation"><button class="btn btn-go m-auto" type="button" onclick="doReserved(20260107,'1030','10300050',50,1700,1900,31000000,31011700,'','',0,'50','1700','1900');">予約</button></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <h3 id="20260108"><button id="b_20260108" class="btn btn-light" type="button" data-toggle="collapse" data-target="#free-info-4" aria-expanded="true" aria-controls="free-info-4" aria-label="詳細表示"><span class="collapse-icon collapse-icon-down" aria-hidden="true"></span></button><a id="a_20260108" data-toggle="collapse" href="#free-info-4" aria-expanded="true" aria-controls="free-info-4" aria-label="詳細表示"><span id="as_20260108" class="align-middle"><span id="ass0_20260108" class="font-middle">1月8日</span><span id="ass1_20260108" class="font-default"><span id="ass1s0_20260108" class="date-w">(木曜)</span><span id="ass1s1_20260108" class="date-y">2026年</span></span></span></a></h3>
+                                        <div id="free-info-4" class="free-info collapse show">
+                                            <table id="dt_free-info-4" class="table free-info-tb">
+                                                <thead class="text-center">
+                                                    <tr>
+                                                        <th scope="col">館</th>
+                                                        <th scope="col">施設</th>
+                                                        <th scope="col">時間帯</th>
+                                                        <th scope="col">予約</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr id="20260108_1030_10300040_1500_4">
+                                                        <td id="20260108_1030_10300040_1500_4_t0" class="mansion font-middle"><a href="https://www.city.shinagawa.tokyo.jp/contentshozon2019/yashiokita.pdf" target="new_window">八潮北公園</a></td>
+                                                        <td id="20260108_1030_10300040_1500_4_t1" class="facility font-middle"><a href="javascript:doVacantDisp(20260108, 1030, 10300040)">庭球場Ｄ</a></td>
+                                                        <td id="20260108_1030_10300040_1500_4_t2" class="timezone">
+                                                            <div id="20260108_1030_10300040_1500_4_t2d" class="d-flex flex-row align-items-center">
+                                                                <div class="flex-grow-0 flex-shrink-0 timezone-text font-middle">15時00分～17時00分</div>
+                                                                <div class="w-100 time-gc-area m-auto flex-grow-1 flex-shrink-1 timezonechart" data-starttime="15:00" data-endtime="17:00">
+                                                                    <table class="table time-gc-cell ml-2" style="border: none;" aria-hidden="true">
+                                                                        <thead class="border-0">
+                                                                            <tr>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">0</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">6</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">12</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">18</th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2"></th>
+                                                                                <th class="bg-white border-0 font-weight-normal" colspan="2">24</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <tr>
+                                                                                <td class="bg-white border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-green border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="cell-gray border-right border-white"></td>
+                                                                                <td class="bg-white border-white"></td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td id="20260108_1030_10300040_1500_4_t3" class="reservation"><button class="btn btn-go m-auto" type="button" onclick="doReserved(20260108,'1030','10300040',40,1500,1700,31000000,31011700,'','',0,'40','1500','1700');">予約</button></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div class="text-left px-4 pb-3 mt-3"><button type="button" class="form-control btn btn-light" onclick="loadNext();" id="unreserved-moreBtn"><i class="fj-icon fj-icon-arrow3-down"> </i>さらに表示</button></div>
+                                </div>
+                            </div><input type="hidden" name="selectUseYmd" id="selectUseYmd" value=""><input type="hidden" name="selectBldCd" id="selectBldCd" value=""><input type="hidden" name="selectInstCd" id="selectInstCd" value=""><input type="hidden" name="selectPpsCd" id="selectPpsdCd" value=""><input type="hidden" name="selectPpsClsCd" id="selectPpsClsCd" value=""><input type="hidden" name="selectStimeZoneNo" id="selectStimeZoneNo" value=""><input type="hidden" name="selectEtimeZoneNo" id="selectEtimeZoneNo" value=""><input type="hidden" name="selectStime" id="selectStime" value=""><input type="hidden" name="selectEtime" id="selectEtime" value=""><input type="hidden" name="selectEventName" id="selectEventName" value=""><input type="hidden" name="selectApplyNum" id="selectApplyNum" value=""><input type="hidden" name="fieldCnt" id="fieldCnt" value=""><input type="hidden" name="validendymd" value="20271217"><input type="hidden" name="e150980" value="利用者の有効期限が過ぎているため、予約を行うことはできません。"><input type="hidden" name="iVacantFg" value="2"><input type="hidden" name="lReserve" value="予約"><input type="hidden" name="lDayofweek" value="曜"><input type="hidden" name="item30" value="時間帯"><input type="hidden" name="item40" value="館"><input type="hidden" name="item50" value="施設"><input type="hidden" name="item250" value="詳細表示"><input type="hidden" name="item260" value="祝日"><input type="hidden" name="iniBCd" value=""><input type="hidden" name="iniICd" value=""><input type="hidden" name="day" value=""><input type="hidden" name="displayNoSub" value="prwrf1000"><input type="hidden" name="e430070" value="データ通信を正しく行うことができませんでした。&lt;BR&gt;時間をあけ再度操作を行って下さい。"><input type="hidden" name="e412300" value="利用停止期間中のため、予約を行うことはできません。">
+                        </div>
+                    </div>
+                </main>
+                <footer class="position-relative d-flex flex-shrink-0 flex-wrap flex-column flex-sm-row align-items-center justify-content-sm-between p-4 border-top border-primary"></footer><input type="hidden" name="displayNo" value="prwrc1000"><input type="hidden" name="displayNoFrm" value="prwrc1000"><input type="hidden" name="e410970" value="年の入力が不正です。"><input type="hidden" name="e410980" value="月の入力が不正です。">
+                <div id="page-top" title="ページ先頭へ" style="display: none; bottom: -100px;"><button type="button" class="btn btn-sm btn-light"><img src="image/top.svg" alt="ページ先頭へ"></button></div>
+            </form>
+        </div>
+        <script>
+            endTagWrite(this.document);
+        </script>
+    </div><noscript>このページではJavaScriptを使用しています。</noscript>
+</body>
+
+</html>
