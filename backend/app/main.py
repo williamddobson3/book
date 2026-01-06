@@ -22,7 +22,7 @@ from app.database import get_db, init_db, AsyncSessionLocal
 from app.api_client import ShinagawaAPIClient
 from app.monitoring_service import MonitoringService
 from app.booking_service import BookingService
-from app.database import AvailabilitySlot, Reservation, MonitoringLog
+from app.database import AvailabilitySlot, Reservation, MonitoringLog, TakenSlot
 from app.status_tracker import status_tracker, SystemStatus, AutomationStatus, LoginStatus, SessionStatus
 
 # Configure logging
@@ -142,28 +142,124 @@ async def background_monitoring():
                     )
                     await broadcast_status_update()
                     
-                    # Scan for new availability (this scans all parks)
+                    # Pattern 2: Intensive monitoring during 9:00-12:00
+                    pattern2_slots = []
+                    from datetime import datetime
+                    current_hour = datetime.now().hour
+                    if 9 <= current_hour < 12:
+                        logger.info("Pattern 2 active: Intensive monitoring (9:00-12:00)")
+                        status_tracker.set_current_task(
+                            f"Pattern 2: Intensive monitoring (9:00-12:00)",
+                            {"cycle": cycle_count, "pattern": "pattern2"}
+                        )
+                        await broadcast_status_update()
+                        pattern2_slots = await monitoring_service.scan_pattern2_intensive(
+                            session, on_status_update=broadcast_status_update
+                        )
+                    
+                    # Pattern 3: Check for "取" → "⚫︎" transitions and attempt bookings at transition times
+                    logger.info("Pattern 3: Checking for transitions and attempting bookings")
+                    transitioned_slots = await monitoring_service._check_transitions(session)
+                    scheduled_bookings = await monitoring_service.schedule_pattern3_bookings(session)
+                    
+                    # Attempt Pattern 3 bookings for slots at transition times
+                    if scheduled_bookings:
+                        logger.info(f"Pattern 3: Attempting {len(scheduled_bookings)} bookings at transition times")
+                        for booking_info in scheduled_bookings:
+                            try:
+                                # Try to find the slot in availability_slots (it may have just become available)
+                                from sqlalchemy import select
+                                from app.database import AvailabilitySlot
+                                
+                                slot_stmt = select(AvailabilitySlot).where(
+                                    AvailabilitySlot.use_ymd == booking_info["use_ymd"],
+                                    AvailabilitySlot.bcd == booking_info["bcd"],
+                                    AvailabilitySlot.icd == booking_info["icd"],
+                                    AvailabilitySlot.start_time == booking_info["start_time"],
+                                    AvailabilitySlot.status == "available"
+                                )
+                                slot_result = await session.execute(slot_stmt)
+                                available_slot = slot_result.scalar_one_or_none()
+                                
+                                if available_slot:
+                                    # Slot is available - attempt booking
+                                    logger.info(f"Pattern 3: Attempting to book {booking_info['bcd_name']} - {booking_info['icd_name']} on {booking_info['use_ymd']}")
+                                    
+                                    result = await booking_service.book_available_slot(
+                                        session,
+                                        slot_id=available_slot.id,
+                                        user_count=2,
+                                        event_name="Pattern3自動予約"
+                                    )
+                                    
+                                    logger.info(f"Pattern 3: Successfully booked! Reservation number: {result['reservation_number']}")
+                                    
+                                    # Update reservation result
+                                    status_tracker.set_reservation_result(
+                                        success=True,
+                                        reservation_number=result['reservation_number'],
+                                        details={"slot_id": available_slot.id, "pattern": "pattern3"}
+                                    )
+                                    
+                                    # Broadcast reservation event
+                                    reservation = result.get('reservation')
+                                    if reservation:
+                                        reservation_data = {
+                                            "id": reservation.id,
+                                            "reservation_number": reservation.reservation_number,
+                                            "bcd_name": reservation.bcd_name,
+                                            "icd_name": reservation.icd_name,
+                                            "start_time_display": reservation.start_time_display,
+                                            "end_time_display": reservation.end_time_display,
+                                            "use_ymd": reservation.use_ymd,
+                                            "user_count": reservation.user_count or 2,
+                                            "event_name": reservation.event_name,
+                                            "status": reservation.status,
+                                            "created_at": reservation.created_at.isoformat() if reservation.created_at else None
+                                        }
+                                        await broadcast_reservation_event(reservation_data)
+                                    
+                                    # Mark taken slot as booked
+                                    from app.database import TakenSlot
+                                    taken_stmt = select(TakenSlot).where(TakenSlot.id == booking_info["taken_slot_id"])
+                                    taken_result = await session.execute(taken_stmt)
+                                    taken_slot = taken_result.scalar_one_or_none()
+                                    if taken_slot:
+                                        taken_slot.status = "booked"
+                                        await session.commit()
+                                    
+                                    break  # Only book one at a time
+                                else:
+                                    logger.debug(f"Pattern 3: Slot not yet available, will retry at next cycle")
+                            except Exception as e:
+                                logger.warning(f"Pattern 3: Failed to book slot: {e}")
+                                continue
+                    
+                    # Standard scan for new availability (this scans all parks)
                     # Pass broadcast callback for real-time status updates during scanning
                     new_slots = await monitoring_service.detect_new_availability(session, on_status_update=broadcast_status_update)
                     
+                    # Combine Pattern 2 slots and newly detected slots
+                    all_new_slots = new_slots + pattern2_slots + transitioned_slots
+                    
                     # Update availability result
                     status_tracker.set_availability_result(
-                        found=len(new_slots) > 0,
-                        slots_count=len(new_slots)
+                        found=len(all_new_slots) > 0,
+                        slots_count=len(all_new_slots)
                     )
                     await broadcast_status_update()
                     
-                    if new_slots:
+                    if all_new_slots:
                         # Broadcast availability update to trigger frontend refresh
                         await broadcast_availability_update()
-                        logger.info(f"Found {len(new_slots)} new available slots, attempting to book...")
-                        status_tracker.add_activity_log("availability", f"Found {len(new_slots)} new available slots")
+                        logger.info(f"Found {len(all_new_slots)} new available slots (Pattern 2: {len(pattern2_slots)}, Transitions: {len(transitioned_slots)}, Standard: {len(new_slots)}), attempting to book...")
+                        status_tracker.add_activity_log("availability", f"Found {len(all_new_slots)} new available slots")
                         
                         # Sort by park priority (lower number = higher priority)
-                        new_slots.sort(key=lambda x: x.get('park_priority', 999))
+                        all_new_slots.sort(key=lambda x: x.get('park_priority', 999))
                         
                         # Attempt to book the first available slot (highest priority)
-                        for slot in new_slots:
+                        for slot in all_new_slots:
                             try:
                                 slot_id = slot.get('id')
                                 if not slot_id:
@@ -239,9 +335,17 @@ async def background_monitoring():
                         await broadcast_status_update()
                 
                 # Cycle completed - log and immediately start next cycle
-                logger.info(f"=== Cycle #{cycle_count} completed. Starting next cycle immediately ===")
-                # Small delay to prevent overwhelming the system (optional, can be removed if immediate restart is needed)
-                await asyncio.sleep(1)  # 1 second delay between cycles
+                logger.info(f"=== Cycle #{cycle_count} completed. Starting next cycle ===")
+                
+                # Use intensive polling interval during Pattern 2 time (9:00-12:00)
+                from datetime import datetime
+                current_hour = datetime.now().hour
+                if 9 <= current_hour < 12:
+                    # Pattern 2: Use intensive polling (0.5 seconds)
+                    await asyncio.sleep(settings.intensive_poll_interval)
+                else:
+                    # Normal polling interval
+                    await asyncio.sleep(1)  # 1 second delay between cycles
                 
             except Exception as e:
                 error_msg = f"Error in background monitoring cycle #{cycle_count}: {str(e)}"

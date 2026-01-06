@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Set, Optional
 import logging
 from app.api_client import ShinagawaAPIClient
-from app.database import AsyncSessionLocal, AvailabilitySlot, MonitoringLog
+from app.database import AsyncSessionLocal, AvailabilitySlot, MonitoringLog, TakenSlot
 from app.status_tracker import status_tracker
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -841,7 +841,9 @@ class MonitoringService:
                 )
 
             available_slots = []
+            taken_slots = []  # Track "取" slots (field_cnt != 0)
             current_keys = set()
+            taken_keys = set()
             filtered_out_count = 0
             normalization_errors = []
 
@@ -854,74 +856,81 @@ class MonitoringService:
                         else slot_raw.get("field_cnt", -1)
                     )
 
-                    # Only include slots with fieldCnt/field_cnt = 0 (available)
-                    if field_cnt == 0:
-                        try:
-                            # Normalize slot data
-                            slot = self.api_client.normalize_slot_data(slot_raw)
+                    # Normalize slot data for both available and taken slots
+                    try:
+                        slot = self.api_client.normalize_slot_data(slot_raw)
 
-                            # Verify required fields are present after normalization
-                            if (
-                                not slot.get("use_ymd")
-                                or not slot.get("bcd")
-                                or not slot.get("icd")
-                            ):
-                                logger.warning(
-                                    f"Normalized slot {idx} missing required fields: use_ymd={slot.get('use_ymd')}, bcd={slot.get('bcd')}, icd={slot.get('icd')}"
-                                )
-                                normalization_errors.append(
-                                    f"Slot {idx}: Missing required fields"
-                                )
-                                continue
+                        # Verify required fields are present after normalization
+                        if (
+                            not slot.get("use_ymd")
+                            or not slot.get("bcd")
+                            or not slot.get("icd")
+                        ):
+                            logger.warning(
+                                f"Normalized slot {idx} missing required fields: use_ymd={slot.get('use_ymd')}, bcd={slot.get('bcd')}, icd={slot.get('icd')}"
+                            )
+                            normalization_errors.append(
+                                f"Slot {idx}: Missing required fields"
+                            )
+                            continue
 
-                            # Create unique key for slot
-                            slot_key = self._slot_key(slot)
+                        # Create unique key for slot
+                        slot_key = self._slot_key(slot)
+
+                        if field_cnt == 0:
+                            # Available slot (⚫︎)
                             if slot_key not in current_keys:
-                                # Add to current keys
                                 current_keys.add(slot_key)
-                                # Add to available slots
                                 available_slots.append(slot)
                             else:
-                                # Log duplicate slot
                                 logger.debug(
                                     f"Slot {idx} is duplicate (key: {slot_key})"
                                 )
-                                continue
-                        except Exception as e:
-                            logger.error(
-                                f"Error normalizing slot {idx}: {e}", exc_info=True
-                            )
-                            normalization_errors.append(f"Slot {idx}: {str(e)}")
-                    else:
-                        filtered_out_count += 1
-                        if idx < 3:  # Log first few filtered slots for debugging
-                            logger.debug(
-                                f"Slot {idx} filtered out: field_cnt={field_cnt} (not 0)"
-                            )
+                        else:
+                            # Taken slot ("取") - track for Pattern 3 monitoring
+                            if slot_key not in taken_keys:
+                                taken_keys.add(slot_key)
+                                slot['field_cnt'] = field_cnt  # Preserve field_cnt for taken slots
+                                taken_slots.append(slot)
+                            else:
+                                logger.debug(
+                                    f"Taken slot {idx} is duplicate (key: {slot_key})"
+                                )
+                    except Exception as e:
+                        logger.error(
+                            f"Error normalizing slot {idx}: {e}", exc_info=True
+                        )
+                        normalization_errors.append(f"Slot {idx}: {str(e)}")
                 except Exception as e:
                     logger.error(f"Error processing slot_raw {idx}: {e}", exc_info=True)
                     normalization_errors.append(f"Slot {idx}: {str(e)}")
 
             logger.info(
-                f"After normalization/filtering: {len(available_slots)} slots ready to store (from {len(all_slots)} raw slots, {filtered_out_count} filtered out)"
+                f"After normalization/filtering: {len(available_slots)} available slots, {len(taken_slots)} taken slots (from {len(all_slots)} raw slots)"
             )
             if normalization_errors:
                 logger.warning(
                     f"Encountered {len(normalization_errors)} normalization errors (showing first 5): {normalization_errors[:5]}"
                 )
 
-            # Store in database
+            # Store available slots in database
             if available_slots:
-            # Store in database
                 stored_slots = await self._store_availability(session, available_slots)
                 logger.info(
-                    f"Successfully stored {len(stored_slots)} slots to database"
+                    f"Successfully stored {len(stored_slots)} available slots to database"
                 )
             else:
                 logger.warning(
-                    f"No slots to store - all {len(all_slots)} raw slots were filtered out or had errors"
+                    f"No available slots to store"
                 )
                 stored_slots = []
+            
+            # Store and track "取" (taken) slots for Pattern 3 monitoring
+            if taken_slots:
+                await self._store_taken_slots(session, taken_slots)
+                logger.info(
+                    f"Tracked {len(taken_slots)} taken slots for Pattern 3 monitoring"
+                )
             
             # Log monitoring
             await self._log_scan(session, len(available_slots))
@@ -1038,6 +1047,327 @@ class MonitoringService:
         await session.commit()
         logger.info(f"Successfully stored {len(stored_slots)} slots to database")
         return stored_slots
+    
+    async def _store_taken_slots(self, session: AsyncSession, taken_slots: List[Dict]) -> List[Dict]:
+        """Store '取' (taken) slots in database and calculate transition times for Pattern 3."""
+        from datetime import datetime, timedelta
+        
+        stored_taken = []
+        logger.info(f"Storing {len(taken_slots)} taken slots to database...")
+
+        for slot_data in taken_slots:
+            try:
+                # Check if taken slot already exists
+                stmt = select(TakenSlot).where(
+                    TakenSlot.use_ymd == slot_data["use_ymd"],
+                    TakenSlot.bcd == slot_data["bcd"],
+                    TakenSlot.icd == slot_data["icd"],
+                    TakenSlot.start_time == slot_data["start_time"],
+                )
+                result = await session.execute(stmt)
+                existing = result.scalar_one_or_none()
+
+                if existing:
+                    # Update existing taken slot - check if it became available
+                    if existing.status == "taken":
+                        # Still taken, just update detection time
+                        existing.detected_at = datetime.utcnow()
+                        existing.updated_at = datetime.utcnow()
+                    # If status is "transition_scheduled" or "available", don't overwrite
+                    logger.debug(
+                        f"Updated existing taken slot: {slot_data.get('bcd_name')} - {slot_data.get('icd_name')} on {slot_data.get('use_ymd')}"
+                    )
+                else:
+                    # Create new taken slot
+                    # Calculate transition times (10-minute intervals starting from next hour)
+                    # Use current time as detection time if not provided
+                    detection_time = datetime.utcnow()
+                    transition_times = self._calculate_transition_times(detection_time)
+                    
+                    db_taken = TakenSlot(
+                        use_ymd=slot_data["use_ymd"],
+                        bcd=slot_data["bcd"],
+                        icd=slot_data["icd"],
+                        bcd_name=slot_data["bcd_name"],
+                        icd_name=slot_data["icd_name"],
+                        start_time=slot_data["start_time"],
+                        end_time=slot_data["end_time"],
+                        start_time_display=slot_data["start_time_display"],
+                        end_time_display=slot_data["end_time_display"],
+                        field_cnt=slot_data.get("field_cnt", 1),
+                        transition_times=transition_times,
+                        status="taken",
+                    )
+                    session.add(db_taken)
+                    await session.flush()
+                    slot_data["id"] = db_taken.id
+                    logger.info(
+                        f"Created new taken slot: {slot_data.get('bcd_name')} - {slot_data.get('icd_name')} on {slot_data.get('use_ymd')} with {len(transition_times)} transition times"
+                    )
+
+                stored_taken.append(slot_data)
+            except Exception as e:
+                logger.error(f"Error storing taken slot {slot_data}: {e}", exc_info=True)
+                continue
+
+        await session.commit()
+        logger.info(f"Successfully stored {len(stored_taken)} taken slots to database")
+        return stored_taken
+    
+    def _calculate_transition_times(self, detected_at: datetime) -> List[str]:
+        """Calculate 10-minute interval transition times for Pattern 3.
+        
+        Transitions occur at 10-minute intervals (e.g., 16:00, 16:10, 16:20, ...)
+        Starting from the next hour after detection, up to 10 hours later.
+        
+        Args:
+            detected_at: When the "取" slot was detected
+            
+        Returns:
+            List of ISO format datetime strings for transition times
+        """
+        transition_times = []
+        
+        # Start from next hour (round up to next hour)
+        current_time = detected_at.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        
+        # Generate transition times for up to 10 hours (60 intervals of 10 minutes)
+        for i in range(60):  # 10 hours * 6 intervals per hour = 60 intervals
+            transition_time = current_time + timedelta(minutes=i * 10)
+            transition_times.append(transition_time.isoformat())
+        
+        return transition_times
+    
+    async def _check_transitions(self, session: AsyncSession) -> List[Dict]:
+        """Check for taken slots that have transitioned to available (Pattern 3).
+        
+        This checks if any taken slots have become available and updates their status.
+        
+        Returns:
+            List of slots that transitioned from "取" to "⚫︎"
+        """
+        from datetime import datetime
+        
+        # Get all taken slots that are still being tracked
+        stmt = select(TakenSlot).where(
+            TakenSlot.status.in_(["taken", "transition_scheduled"])
+        )
+        result = await session.execute(stmt)
+        taken_slots = list(result.scalars().all())
+        
+        transitioned_slots = []
+        
+        for taken_slot in taken_slots:
+            # Check if this slot now exists as available in AvailabilitySlot
+            check_stmt = select(AvailabilitySlot).where(
+                AvailabilitySlot.use_ymd == taken_slot.use_ymd,
+                AvailabilitySlot.bcd == taken_slot.bcd,
+                AvailabilitySlot.icd == taken_slot.icd,
+                AvailabilitySlot.start_time == taken_slot.start_time,
+                AvailabilitySlot.status == "available"
+            )
+            check_result = await session.execute(check_stmt)
+            available_slot = check_result.scalar_one_or_none()
+            
+            if available_slot:
+                # Slot transitioned from "取" to "⚫︎"
+                taken_slot.status = "available"
+                taken_slot.became_available_at = datetime.utcnow()
+                taken_slot.updated_at = datetime.utcnow()
+                
+                transitioned_slots.append({
+                    "id": available_slot.id,
+                    "use_ymd": taken_slot.use_ymd,
+                    "bcd": taken_slot.bcd,
+                    "icd": taken_slot.icd,
+                    "bcd_name": taken_slot.bcd_name,
+                    "icd_name": taken_slot.icd_name,
+                    "start_time": taken_slot.start_time,
+                    "end_time": taken_slot.end_time,
+                })
+                
+                logger.info(
+                    f"Detected transition: {taken_slot.bcd_name} - {taken_slot.icd_name} on {taken_slot.use_ymd} from '取' to '⚫︎'"
+                )
+        
+        if transitioned_slots:
+            await session.commit()
+            logger.info(f"Found {len(transitioned_slots)} slots that transitioned from '取' to '⚫︎'")
+        
+        return transitioned_slots
+    
+    def _is_within_one_week(self, use_ymd: int) -> bool:
+        """Check if a slot date is within 1 week from today (Pattern 2 requirement).
+        
+        Args:
+            use_ymd: Date in YYYYMMDD format
+            
+        Returns:
+            True if slot is within 1 week, False otherwise
+        """
+        from datetime import datetime, timedelta
+        
+        try:
+            slot_date = datetime.strptime(str(use_ymd), "%Y%m%d")
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            week_from_today = today + timedelta(days=7)
+            
+            return today <= slot_date <= week_from_today
+        except (ValueError, TypeError):
+            return False
+    
+    def _is_pattern2_time(self) -> bool:
+        """Check if current time is within Pattern 2 monitoring window (9:00-12:00).
+        
+        Returns:
+            True if current time is between 9:00 and 12:00, False otherwise
+        """
+        from datetime import datetime
+        
+        now = datetime.now()
+        return 9 <= now.hour < 12
+    
+    def _is_third_monday(self, date: datetime) -> bool:
+        """Check if a date is the 3rd Monday of the month (Pattern 2 irregular case).
+        
+        Args:
+            date: Date to check
+            
+        Returns:
+            True if date is 3rd Monday, False otherwise
+        """
+        # Check if it's a Monday
+        if date.weekday() != 0:  # Monday is 0
+            return False
+        
+        # Check if it's the 3rd Monday (between 15th and 21st)
+        return 15 <= date.day <= 21
+    
+    def _is_new_year_period(self, date: datetime) -> bool:
+        """Check if date is in New Year period (Dec 29 - Jan 3) (Pattern 2 irregular case).
+        
+        Args:
+            date: Date to check
+            
+        Returns:
+            True if date is in New Year period, False otherwise
+        """
+        # Check Dec 29-31
+        if date.month == 12 and date.day >= 29:
+            return True
+        
+        # Check Jan 1-3
+        if date.month == 1 and date.day <= 3:
+            return True
+        
+        return False
+    
+    async def scan_pattern2_intensive(
+        self, session: AsyncSession, on_status_update=None
+    ) -> List[Dict]:
+        """Pattern 2: Intensive monitoring during 9:00-12:00 for slots within 1 week.
+        
+        This scans more frequently during the 9-12 AM window for slots that are
+        within 1 week from today.
+        
+        Args:
+            session: Database session
+            on_status_update: Optional callback for status updates
+            
+        Returns:
+            List of newly detected available slots within 1 week
+        """
+        if not self._is_pattern2_time():
+            logger.debug("Not in Pattern 2 time window (9:00-12:00), skipping intensive scan")
+            return []
+        
+        logger.info("Starting Pattern 2 intensive monitoring (9:00-12:00, within 1 week)")
+        
+        # Scan all parks
+        all_slots = await self.scan_availability(session, on_status_update=on_status_update)
+        
+        # Filter slots within 1 week
+        pattern2_slots = [
+            slot for slot in all_slots
+            if self._is_within_one_week(slot.get("use_ymd", 0))
+        ]
+        
+        logger.info(
+            f"Pattern 2 scan: Found {len(pattern2_slots)} available slots within 1 week"
+        )
+        
+        return pattern2_slots
+    
+    async def schedule_pattern3_bookings(
+        self, session: AsyncSession
+    ) -> List[Dict]:
+        """Pattern 3: Schedule booking actions for "取" slots at transition times.
+        
+        This checks for taken slots that have upcoming transition times and
+        schedules booking actions.
+        
+        Args:
+            session: Database session
+            
+        Returns:
+            List of slots that need booking actions scheduled
+        """
+        from datetime import datetime, timedelta
+        
+        # Get all taken slots with transition times
+        stmt = select(TakenSlot).where(
+            TakenSlot.status == "taken"
+        )
+        result = await session.execute(stmt)
+        taken_slots = list(result.scalars().all())
+        
+        scheduled_bookings = []
+        now = datetime.utcnow()
+        
+        for taken_slot in taken_slots:
+            if not taken_slot.transition_times:
+                continue
+            
+            # Check each transition time
+            for transition_time_str in taken_slot.transition_times:
+                try:
+                    transition_time = datetime.fromisoformat(transition_time_str)
+                    
+                    # Check if transition time is within next 5 minutes (action window)
+                    time_diff = (transition_time - now).total_seconds()
+                    
+                    if 0 <= time_diff <= 300:  # Within 5 minutes
+                        # Schedule booking action
+                        taken_slot.status = "transition_scheduled"
+                        taken_slot.updated_at = datetime.utcnow()
+                        
+                        scheduled_bookings.append({
+                            "taken_slot_id": taken_slot.id,
+                            "use_ymd": taken_slot.use_ymd,
+                            "bcd": taken_slot.bcd,
+                            "icd": taken_slot.icd,
+                            "bcd_name": taken_slot.bcd_name,
+                            "icd_name": taken_slot.icd_name,
+                            "start_time": taken_slot.start_time,
+                            "end_time": taken_slot.end_time,
+                            "transition_time": transition_time_str,
+                            "time_until_transition": time_diff,
+                        })
+                        
+                        logger.info(
+                            f"Scheduled Pattern 3 booking for {taken_slot.bcd_name} - {taken_slot.icd_name} "
+                            f"on {taken_slot.use_ymd} at transition time {transition_time_str}"
+                        )
+                        break  # Only schedule one action per slot
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid transition time format: {transition_time_str}: {e}")
+                    continue
+        
+        if scheduled_bookings:
+            await session.commit()
+            logger.info(f"Scheduled {len(scheduled_bookings)} Pattern 3 booking actions")
+        
+        return scheduled_bookings
     
     async def _log_scan(self, session: AsyncSession, slot_count: int):
         """Log scan activity."""

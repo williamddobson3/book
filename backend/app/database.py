@@ -89,6 +89,29 @@ class MonitoringLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class TakenSlot(Base):
+    """Track '取' (taken) slots and their transitions to available."""
+    __tablename__ = "taken_slots"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    use_ymd = Column(Integer, index=True)  # YYYYMMDD format
+    bcd = Column(String, index=True)  # Building code
+    icd = Column(String, index=True)  # Facility code
+    bcd_name = Column(String)  # Building name
+    icd_name = Column(String)  # Facility name
+    start_time = Column(Integer)  # HHMM format
+    end_time = Column(Integer)  # HHMM format
+    start_time_display = Column(String)  # e.g., "08時30分"
+    end_time_display = Column(String)  # e.g., "10時30分"
+    field_cnt = Column(Integer)  # Field count when detected as "取"
+    detected_at = Column(DateTime, default=datetime.utcnow, index=True)  # When "取" was first detected
+    transition_times = Column(JSON, nullable=True)  # List of predicted transition times (10-minute intervals)
+    became_available_at = Column(DateTime, nullable=True, index=True)  # When it actually became available
+    status = Column(String, default="taken", index=True)  # taken, transition_scheduled, available, booked
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 async def init_db():
     """Initialize database tables and run migrations."""
     async with engine.begin() as conn:
@@ -96,6 +119,7 @@ async def init_db():
         
         # Run migrations
         await _migrate_reservations_table(conn)
+        await _migrate_taken_slots_table(conn)
 
 
 async def _migrate_reservations_table(conn):
@@ -129,6 +153,25 @@ async def _migrate_reservations_table(conn):
     
     # Run migration synchronously within the async context
     await conn.run_sync(lambda sync_conn: _check_and_add_column(sync_conn))
+
+
+async def _migrate_taken_slots_table(conn):
+    """Add taken_slots table if needed."""
+    def _check_and_create_table(sync_conn):
+        """Synchronous function to check and create table."""
+        try:
+            # Check if taken_slots table exists
+            result = sync_conn.execute(text(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='taken_slots'"
+            ))
+            if result.scalar() is None:
+                # Table doesn't exist - create_all should have created it, but if not, log
+                logger.info("taken_slots table will be created by create_all")
+        except Exception as e:
+            logger.debug(f"Migration check for taken_slots: {e}")
+    
+    # Run migration synchronously within the async context
+    await conn.run_sync(lambda sync_conn: _check_and_create_table(sync_conn))
 
 
 async def get_db():
