@@ -179,22 +179,42 @@ class ShinagawaAPIClient:
         return all_slots
     
     def normalize_slot_data(self, slot: Dict) -> Dict:
-        """Normalize slot data from API response to standard format."""
+        """Normalize slot data from API response or calendar extraction to standard format.
+        
+        Handles both formats:
+        - API format: camelCase keys (useYmd, bcdNm, sTime, etc.)
+        - Calendar extraction format: snake_case keys (use_ymd, bcd_name, start_time, etc.)
+        """
+        # Helper to get value from either format
+        def get_value(camel_key, snake_key, default=None):
+            if camel_key in slot:
+                return slot[camel_key]
+            return slot.get(snake_key, default)
+        
+        # Helper to convert to int safely
+        def to_int(value, default=0):
+            if value is None:
+                return default
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return default
+        
         return {
-            'use_ymd': slot.get('useYmd'),
+            'use_ymd': get_value('useYmd', 'use_ymd'),
             'bcd': slot.get('bcd'),
             'icd': slot.get('icd'),
-            'bcd_name': slot.get('bcdNm'),
-            'icd_name': slot.get('icdNm'),
-            'start_time': slot.get('sTime'),
-            'end_time': slot.get('eTime'),
-            'start_time_display': slot.get('sJTime'),
-            'end_time_display': slot.get('eJTime'),
-            'pps_cd': slot.get('ppsCd'),
-            'pps_cls_cd': slot.get('ppsClsCd'),
-            'week_flg': slot.get('weekFlg'),
-            'holiday_flg': slot.get('holidayFlg'),
-            'field_cnt': slot.get('fieldCnt', 0),
+            'bcd_name': get_value('bcdNm', 'bcd_name'),
+            'icd_name': get_value('icdNm', 'icd_name'),
+            'start_time': to_int(get_value('sTime', 'start_time')),
+            'end_time': to_int(get_value('eTime', 'end_time')),
+            'start_time_display': get_value('sJTime', 'start_time_display'),
+            'end_time_display': get_value('eJTime', 'end_time_display'),
+            'pps_cd': to_int(get_value('ppsCd', 'pps_cd'), 0),
+            'pps_cls_cd': to_int(get_value('ppsClsCd', 'pps_cls_cd'), 0),
+            'week_flg': to_int(get_value('weekFlg', 'week_flg'), 0),
+            'holiday_flg': to_int(get_value('holidayFlg', 'holiday_flg'), 0),
+            'field_cnt': to_int(get_value('fieldCnt', 'field_cnt'), 0),
             'park_name': slot.get('park_name'),
             'park_priority': slot.get('park_priority'),
             'raw_data': slot

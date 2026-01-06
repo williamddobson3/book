@@ -36,6 +36,9 @@ export const api = {
   // Health check
   healthCheck: () => client.get('/health'),
   
+  // Status
+  getStatus: () => client.get('/status'),
+  
   // Availability
   scanAvailability: () => client.post('/scan'),
   getAvailability: (params = {}) => client.get('/availability', { params }),

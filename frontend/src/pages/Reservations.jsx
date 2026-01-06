@@ -1,17 +1,40 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Clock, Calendar, MapPin, CheckCircle, XCircle } from 'lucide-react'
 import { api } from '../api/client'
 import { format } from 'date-fns'
+import { useSSE } from '../hooks/useSSE'
 
 export default function Reservations() {
   const [reservations, setReservations] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadReservations()
+  // Handle SSE events for real-time reservation updates
+  const handleSSEMessage = useCallback((event) => {
+    if (event.type === 'reservation' && event.data) {
+      const newReservation = event.data
+      console.log('New reservation received via SSE:', newReservation)
+      
+      // Add new reservation to the top of the list
+      setReservations((prev) => {
+        // Check if reservation already exists (avoid duplicates)
+        const exists = prev.some(r => r.id === newReservation.id)
+        if (exists) {
+          return prev
+        }
+        // Add to the beginning of the list (most recent first)
+        return [newReservation, ...prev]
+      })
+    }
   }, [])
 
-  const loadReservations = async () => {
+  const handleSSEError = useCallback((error) => {
+    console.error('SSE error:', error)
+  }, [])
+
+  // Connect to SSE endpoint
+  useSSE('/api/events', handleSSEMessage, handleSSEError)
+
+  const loadReservations = useCallback(async () => {
     try {
       setLoading(true)
       const response = await api.getReservations(100)
@@ -22,7 +45,11 @@ export default function Reservations() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadReservations()
+  }, [loadReservations])
 
   const formatDate = (ymd) => {
     const dateStr = ymd.toString()
@@ -144,7 +171,17 @@ export default function Reservations() {
                         {reservation.reservation_number}
                       </div>
                       <div className="text-xs text-gray-500 mt-2">
-                        {format(new Date(reservation.created_at), 'yyyy/MM/dd HH:mm')}
+                        {(() => {
+                          try {
+                            const utcDate = new Date(reservation.created_at)
+                            if (isNaN(utcDate.getTime())) return 'N/A'
+                            // Convert UTC to GMT+9 (Japan Standard Time) by adding 9 hours
+                            const jstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000))
+                            return format(jstDate, 'yyyy/MM/dd HH:mm')
+                          } catch {
+                            return 'N/A'
+                          }
+                        })()}
                       </div>
                     </div>
                   </div>

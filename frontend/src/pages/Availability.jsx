@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Calendar, Clock, MapPin, BookOpen, RefreshCw, Filter } from 'lucide-react'
 import { api } from '../api/client'
-import { format } from 'date-fns'
 
 export default function Availability() {
   const [slots, setSlots] = useState([])
@@ -15,11 +14,7 @@ export default function Availability() {
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [booking, setBooking] = useState({ user_count: 2, event_name: '' })
 
-  useEffect(() => {
-    loadAvailability()
-  }, [filter])
-
-  const loadAvailability = async () => {
+  const loadAvailability = useCallback(async () => {
     try {
       setLoading(true)
       const params = {}
@@ -35,7 +30,11 @@ export default function Availability() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filter])
+
+  useEffect(() => {
+    loadAvailability()
+  }, [loadAvailability])
 
   const handleScan = async () => {
     try {

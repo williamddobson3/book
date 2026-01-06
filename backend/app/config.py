@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     # Target Parks
     target_parks: list[dict] = [
         {"bcd": "1040", "name": "しながわ区民公園", "area": "1200_1040", "priority": 1},
-        {"bcd": "1030", "name": "八潮北公園", "area": "1500_1030", "priority": 2},
-        {"bcd": "1010", "name": "しながわ中央公園", "area": "1400_1010", "priority": 3},
+        {"bcd": "1010", "name": "しながわ中央公園", "area": "1400_1010", "priority": 2},
+        {"bcd": "1030", "name": "八潮北公園", "area": "1500_1030", "priority": 3},
         {"bcd": "1020", "name": "東品川公園", "area": "1400_1020", "priority": 4},
     ]
     

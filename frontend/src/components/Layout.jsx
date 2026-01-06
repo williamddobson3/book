@@ -1,15 +1,6 @@
-import { Link, useLocation } from 'react-router-dom'
-import { Calendar, Clock, Home, Activity } from 'lucide-react'
+import { Activity } from 'lucide-react'
 
 export default function Layout({ children }) {
-  const location = useLocation()
-
-  const navItems = [
-    { path: '/', label: 'ダッシュボード', icon: Home },
-    { path: '/availability', label: '空き状況', icon: Calendar },
-    { path: '/reservations', label: '予約一覧', icon: Clock },
-  ]
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -22,28 +13,6 @@ export default function Layout({ children }) {
                 品川区施設予約システム
               </h1>
             </div>
-            <nav className="flex space-x-1">
-              {navItems.map((item) => {
-                const Icon = item.icon
-                const isActive = location.pathname === item.path
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`
-                      flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                      ${isActive
-                        ? 'bg-primary-50 text-primary-700'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                      }
-                    `}
-                  >
-                    <Icon className="h-4 w-4 mr-2" />
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </nav>
           </div>
         </div>
       </header>

@@ -74,24 +74,48 @@ class BookingService:
             booking_result = await self.browser.book_slot(slot_data)
             
             if booking_result['success']:
-                # Create reservation record
-                reservation = Reservation(
-                    reservation_number=booking_result['reservation_number'],
-                    use_ymd=slot.use_ymd,
-                    bcd=slot.bcd,
-                    icd=slot.icd,
-                    bcd_name=slot.bcd_name,
-                    icd_name=slot.icd_name,
-                    start_time=slot.start_time,
-                    end_time=slot.end_time,
-                    start_time_display=slot.start_time_display,
-                    end_time_display=slot.end_time_display,
-                    user_count=user_count,
-                    event_name=event_name,
-                    status='confirmed',
-                    booking_data=booking_result
+                # Check if a reservation with status='selected' already exists for this slot
+                stmt = select(Reservation).where(
+                    Reservation.use_ymd == slot.use_ymd,
+                    Reservation.bcd == slot.bcd,
+                    Reservation.icd == slot.icd,
+                    Reservation.start_time == slot.start_time,
+                    Reservation.end_time == slot.end_time,
+                    Reservation.status == 'selected'
                 )
-                session.add(reservation)
+                result = await session.execute(stmt)
+                existing_reservation = result.scalar_one_or_none()
+                
+                if existing_reservation:
+                    # Update existing reservation with booking details
+                    existing_reservation.reservation_number = booking_result['reservation_number']
+                    existing_reservation.user_count = user_count
+                    existing_reservation.event_name = event_name
+                    existing_reservation.status = 'confirmed'
+                    existing_reservation.booking_data = booking_result
+                    existing_reservation.updated_at = datetime.utcnow()
+                    reservation = existing_reservation
+                    logger.info(f"Updated existing selected reservation to confirmed: {booking_result['reservation_number']}")
+                else:
+                    # Create new reservation record
+                    reservation = Reservation(
+                        reservation_number=booking_result['reservation_number'],
+                        use_ymd=slot.use_ymd,
+                        bcd=slot.bcd,
+                        icd=slot.icd,
+                        bcd_name=slot.bcd_name,
+                        icd_name=slot.icd_name,
+                        start_time=slot.start_time,
+                        end_time=slot.end_time,
+                        start_time_display=slot.start_time_display,
+                        end_time_display=slot.end_time_display,
+                        user_count=user_count,
+                        event_name=event_name,
+                        status='confirmed',
+                        booking_data=booking_result
+                    )
+                    session.add(reservation)
+                    logger.info(f"Created new reservation record: {booking_result['reservation_number']}")
                 
                 # Update slot status
                 slot.status = 'booked'

@@ -8,18 +8,22 @@ if sys.platform == 'win32':
 
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 import logging
+import json
+import asyncio
+from collections import deque
 
 from app.database import get_db, init_db, AsyncSessionLocal
 from app.api_client import ShinagawaAPIClient
 from app.monitoring_service import MonitoringService
 from app.booking_service import BookingService
 from app.database import AvailabilitySlot, Reservation, MonitoringLog
+from app.status_tracker import status_tracker, SystemStatus, AutomationStatus, LoginStatus, SessionStatus
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,54 +46,219 @@ monitoring_service: Optional[MonitoringService] = None
 booking_service: Optional[BookingService] = None
 monitoring_task: Optional[asyncio.Task] = None
 
+# SSE event queue for real-time updates
+sse_connections: deque = deque()
+
+async def broadcast_reservation_event(reservation_data: dict):
+    """Broadcast a new reservation event to all connected SSE clients."""
+    event = {
+        "type": "reservation",
+        "data": reservation_data
+    }
+    message = f"data: {json.dumps(event)}\n\n"
+    
+    # Send to all connected clients
+    disconnected = []
+    for queue in sse_connections:
+        try:
+            await queue.put(message)
+        except Exception as e:
+            logger.warning(f"Error sending SSE message: {e}")
+            disconnected.append(queue)
+    
+    # Remove disconnected clients
+    for queue in disconnected:
+        try:
+            sse_connections.remove(queue)
+        except ValueError:
+            pass
+
+
+async def broadcast_availability_update():
+    """Broadcast availability update event to trigger frontend refresh."""
+    event = {
+        "type": "availability_update",
+        "message": "New availability slots found - refreshing list"
+    }
+    message = f"data: {json.dumps(event)}\n\n"
+    
+    # Send to all connected clients
+    disconnected = []
+    for queue in sse_connections:
+        try:
+            await queue.put(message)
+        except Exception as e:
+            logger.warning(f"Error sending SSE message: {e}")
+            disconnected.append(queue)
+    
+    # Remove disconnected clients
+    for queue in disconnected:
+        try:
+            sse_connections.remove(queue)
+        except ValueError:
+            pass
+
 
 async def background_monitoring():
-    """Background task that periodically scans for availability and auto-books slots."""
+    """Background task that continuously scans all parks for availability and auto-books slots.
+    
+    This function loops through all parks continuously:
+    1. Scans all four parks in sequence
+    2. After completing all parks, immediately starts over
+    3. Continues this process indefinitely until manually stopped
+    """
     from app.config import settings
     
-    while True:
-        try:
-            async with AsyncSessionLocal() as session:
-                # Scan for new availability
-                new_slots = await monitoring_service.detect_new_availability(session)
+    cycle_count = 0
+    
+    # Create a background task to periodically update activity time (heartbeat)
+    async def heartbeat_task():
+        """Periodically update activity time to show system is alive."""
+        while True:
+            try:
+                await asyncio.sleep(30)  # Update every 30 seconds
+                status_tracker.touch_activity_time()
+                # Broadcast heartbeat update
+                await broadcast_status_update()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"Error in heartbeat task: {e}")
+    
+    heartbeat = asyncio.create_task(heartbeat_task())
+    
+    try:
+        while True:
+            try:
+                cycle_count += 1
+                logger.info(f"=== Starting monitoring cycle #{cycle_count} ===")
+                status_tracker.add_activity_log("system", f"Starting monitoring cycle #{cycle_count}")
                 
-                if new_slots:
-                    logger.info(f"Found {len(new_slots)} new available slots, attempting to book...")
+                async with AsyncSessionLocal() as session:
+                    # Update status: starting new cycle
+                    status_tracker.set_current_task(
+                        f"Scanning cycle #{cycle_count} - All parks",
+                        {"cycle": cycle_count, "action": "scanning_all_parks"}
+                    )
+                    await broadcast_status_update()
                     
-                    # Sort by park priority (lower number = higher priority)
-                    new_slots.sort(key=lambda x: x.get('park_priority', 999))
+                    # Scan for new availability (this scans all parks)
+                    # Pass broadcast callback for real-time status updates during scanning
+                    new_slots = await monitoring_service.detect_new_availability(session, on_status_update=broadcast_status_update)
                     
-                    # Attempt to book the first available slot (highest priority)
-                    for slot in new_slots:
-                        try:
-                            slot_id = slot.get('id')
-                            if not slot_id:
-                                continue
+                    # Update availability result
+                    status_tracker.set_availability_result(
+                        found=len(new_slots) > 0,
+                        slots_count=len(new_slots)
+                    )
+                    await broadcast_status_update()
+                    
+                    if new_slots:
+                        # Broadcast availability update to trigger frontend refresh
+                        await broadcast_availability_update()
+                        logger.info(f"Found {len(new_slots)} new available slots, attempting to book...")
+                        status_tracker.add_activity_log("availability", f"Found {len(new_slots)} new available slots")
+                        
+                        # Sort by park priority (lower number = higher priority)
+                        new_slots.sort(key=lambda x: x.get('park_priority', 999))
+                        
+                        # Attempt to book the first available slot (highest priority)
+                        for slot in new_slots:
+                            try:
+                                slot_id = slot.get('id')
+                                if not slot_id:
+                                    continue
+                                    
+                                logger.info(f"Attempting to book slot {slot_id}: {slot.get('bcd_name')} - {slot.get('icd_name')} on {slot.get('use_ymd')}")
                                 
-                            logger.info(f"Attempting to book slot {slot_id}: {slot.get('bcd_name')} - {slot.get('icd_name')} on {slot.get('use_ymd')}")
-                            
-                            result = await booking_service.book_available_slot(
-                                session,
-                                slot_id=slot_id,
-                                user_count=2,
-                                event_name="自動予約"
-                            )
-                            
-                            logger.info(f"Successfully booked slot! Reservation number: {result['reservation_number']}")
-                            # Only book one slot at a time
-                            break
-                            
-                        except Exception as e:
-                            logger.error(f"Failed to book slot {slot.get('id')}: {e}")
-                            continue
+                                # Update status: attempting reservation
+                                status_tracker.set_current_task(
+                                    f"Attempting reservation: {slot.get('bcd_name')} - {slot.get('icd_name')}",
+                                    {"slot_id": slot_id, "park": slot.get('bcd_name'), "court": slot.get('icd_name')}
+                                )
+                                await broadcast_status_update()
+                                
+                                result = await booking_service.book_available_slot(
+                                    session,
+                                    slot_id=slot_id,
+                                    user_count=2,
+                                    event_name="自動予約"
+                                )
+                                
+                                logger.info(f"Successfully booked slot! Reservation number: {result['reservation_number']}")
+                                
+                                # Update reservation result
+                                status_tracker.set_reservation_result(
+                                    success=True,
+                                    reservation_number=result['reservation_number'],
+                                    details={"slot_id": slot_id}
+                                )
+                                status_tracker.set_current_task(None)  # Clear task
+                                await broadcast_status_update()
+                                
+                                # Broadcast reservation event to frontend
+                                reservation = result.get('reservation')
+                                if reservation:
+                                    reservation_data = {
+                                        "id": reservation.id,
+                                        "reservation_number": reservation.reservation_number,
+                                        "bcd_name": reservation.bcd_name,
+                                        "icd_name": reservation.icd_name,
+                                        "start_time_display": reservation.start_time_display,
+                                        "end_time_display": reservation.end_time_display,
+                                        "use_ymd": reservation.use_ymd,
+                                        "user_count": reservation.user_count or 2,
+                                        "event_name": reservation.event_name,
+                                        "status": reservation.status,
+                                        "created_at": reservation.created_at.isoformat() if reservation.created_at else None
+                                    }
+                                    await broadcast_reservation_event(reservation_data)
+                                
+                                # Only book one slot at a time
+                                break
+                                
+                            except Exception as e:
+                                error_msg = f"Failed to book slot {slot.get('id')}: {str(e)}"
+                                logger.error(error_msg)
+                                status_tracker.add_error(error_msg, {"slot_id": slot.get('id')})
+                                status_tracker.set_reservation_result(
+                                    success=False,
+                                    error=error_msg,
+                                    details={"slot_id": slot.get('id')}
+                                )
+                                status_tracker.set_current_task(None)  # Clear task
+                                await broadcast_status_update()
+                                continue
+                    else:
+                        logger.info(f"Cycle #{cycle_count} completed - no new slots found. Starting next cycle...")
+                        status_tracker.add_activity_log("system", f"Cycle #{cycle_count} completed - no new slots found")
+                        status_tracker.set_current_task(
+                            f"Cycle #{cycle_count} completed - Starting next cycle...",
+                            {"cycle": cycle_count, "action": "cycle_completed"}
+                        )
+                        await broadcast_status_update()
                 
-                # Wait before next scan
-                await asyncio.sleep(settings.poll_interval)
+                # Cycle completed - log and immediately start next cycle
+                logger.info(f"=== Cycle #{cycle_count} completed. Starting next cycle immediately ===")
+                # Small delay to prevent overwhelming the system (optional, can be removed if immediate restart is needed)
+                await asyncio.sleep(1)  # 1 second delay between cycles
                 
-        except Exception as e:
-            logger.error(f"Error in background monitoring: {e}")
-            # Wait a bit longer on error before retrying
-            await asyncio.sleep(settings.poll_interval * 2)
+            except Exception as e:
+                error_msg = f"Error in background monitoring cycle #{cycle_count}: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                status_tracker.add_error(error_msg)
+                status_tracker.set_current_task(None)
+                await broadcast_status_update()
+                # Wait a bit longer on error before retrying
+                logger.info(f"Waiting {settings.poll_interval * 2} seconds before retrying after error...")
+                await asyncio.sleep(settings.poll_interval * 2)
+    finally:
+        # Cancel heartbeat task on shutdown
+        heartbeat.cancel()
+        try:
+            await heartbeat
+        except asyncio.CancelledError:
+            pass
 
 
 @app.on_event("startup")
@@ -97,35 +266,59 @@ async def startup_event():
     """Initialize services on startup."""
     global api_client, monitoring_service, booking_service, monitoring_task
     
+    # Initialize status tracker
+    status_tracker.set_backend_status(SystemStatus.RUNNING)
+    status_tracker.add_activity_log("system", "Backend starting up...")
+    
     # Initialize database
     await init_db()
+    status_tracker.add_activity_log("system", "Database initialized")
     
     # Initialize API client (will be updated with cookies after login)
     api_client = ShinagawaAPIClient()
     
     # Initialize services
+    status_tracker.set_current_task("Initializing browser automation...")
     booking_service = BookingService()
     await booking_service.initialize()
+    status_tracker.add_activity_log("system", "Browser automation initialized")
     
     # Initialize monitoring service with browser automation reference
     monitoring_service = MonitoringService(api_client, browser_automation=booking_service.browser)
     
     # Get cookies from login and update API client
-    cookies = await booking_service.browser.context.cookies()
-    cookie_dict = {c['name']: c['value'] for c in cookies}
-    api_client.update_cookies(cookie_dict)
-    logger.info("Updated API client with authentication cookies")
+    status_tracker.set_current_task("Logging in...")
+    try:
+        cookies = await booking_service.browser.context.cookies()
+        cookie_dict = {c['name']: c['value'] for c in cookies}
+        api_client.update_cookies(cookie_dict)
+        logger.info("Updated API client with authentication cookies")
+        
+        # Update status tracker
+        status_tracker.set_login_status(LoginStatus.LOGGED_IN)
+        status_tracker.add_activity_log("login", "Login successful - session active")
+    except Exception as e:
+        status_tracker.set_login_status(LoginStatus.NOT_LOGGED_IN)
+        status_tracker.add_error(f"Login check failed: {str(e)}")
+        logger.error(f"Error checking login status: {e}")
+    
+    status_tracker.set_current_task(None)  # Clear task
     
     # Start background monitoring task for automatic booking
     monitoring_task = asyncio.create_task(background_monitoring())
+    status_tracker.add_activity_log("system", "Background monitoring started")
     
     logger.info("Application started")
+    status_tracker.add_activity_log("system", "Application started successfully")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown."""
     global booking_service, monitoring_task
+    
+    status_tracker.set_backend_status(SystemStatus.STOPPED)
+    status_tracker.add_activity_log("system", "Backend shutting down...")
     
     # Cancel background monitoring task
     if monitoring_task:
@@ -137,6 +330,8 @@ async def shutdown_event():
     
     if booking_service:
         await booking_service.cleanup()
+    
+    status_tracker.add_activity_log("system", "Application stopped")
     logger.info("Application stopped")
 
 
@@ -200,26 +395,47 @@ async def scan_availability(
 ):
     """Trigger availability scan."""
     try:
-            slots = await monitoring_service.scan_availability(session)
-            # Convert to dict format for response
-            slot_dicts = []
-            for slot in slots:
-                slot_dicts.append({
-                    'id': slot.get('id', 0),
-                    'use_ymd': slot['use_ymd'],
-                    'bcd_name': slot['bcd_name'],
-                    'icd_name': slot['icd_name'],
-                    'start_time_display': slot['start_time_display'],
-                    'end_time_display': slot['end_time_display'],
-                    'status': slot.get('status', 'available')
-                })
-            return {
-                "success": True,
-                "slots_found": len(slots),
-                "slots": slot_dicts
-            }
+        status_tracker.set_current_task("Scanning availability...", {"action": "manual_scan"})
+        await broadcast_status_update()
+        
+        slots = await monitoring_service.scan_availability(session)
+        
+        # Convert to dict format for response
+        slot_dicts = []
+        for slot in slots:
+            slot_dicts.append({
+                'id': slot.get('id', 0),
+                'use_ymd': slot['use_ymd'],
+                'bcd_name': slot['bcd_name'],
+                'icd_name': slot['icd_name'],
+                'start_time_display': slot['start_time_display'],
+                'end_time_display': slot['end_time_display'],
+                'status': slot.get('status', 'available')
+            })
+        
+        # Update status
+        status_tracker.set_availability_result(
+            found=len(slots) > 0,
+            slots_count=len(slots)
+        )
+        status_tracker.set_current_task(None)
+        await broadcast_status_update()
+        
+        # Broadcast availability update to trigger frontend refresh
+        if slots:
+            await broadcast_availability_update()
+        
+        return {
+            "success": True,
+            "slots_found": len(slots),
+            "slots": slot_dicts
+        }
     except Exception as e:
-        logger.error(f"Scan error: {e}")
+        error_msg = f"Scan error: {str(e)}"
+        logger.error(error_msg)
+        status_tracker.add_error(error_msg)
+        status_tracker.set_current_task(None)
+        await broadcast_status_update()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -278,6 +494,23 @@ async def book_slot(
         )
         
         reservation = result['reservation']
+        reservation_data = {
+            "id": reservation.id,
+            "reservation_number": reservation.reservation_number,
+            "bcd_name": reservation.bcd_name,
+            "icd_name": reservation.icd_name,
+            "start_time_display": reservation.start_time_display,
+            "end_time_display": reservation.end_time_display,
+            "use_ymd": reservation.use_ymd,
+            "user_count": reservation.user_count or 2,
+            "event_name": reservation.event_name,
+            "status": reservation.status,
+            "created_at": reservation.created_at.isoformat() if reservation.created_at else None
+        }
+        
+        # Broadcast reservation event to frontend
+        await broadcast_reservation_event(reservation_data)
+        
         return {
             "success": True,
             "reservation_number": result['reservation_number'],
@@ -368,6 +601,175 @@ async def get_logs(
     except Exception as e:
         logger.error(f"Error getting logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/status")
+async def get_status():
+    """Get comprehensive system status."""
+    try:
+        # Ensure status_tracker is available
+        if status_tracker is None:
+            logger.warning("Status tracker is None, returning default status")
+            # Return a default status structure
+            return {
+                "success": True,
+                "status": {
+                    "system": {
+                        "backend_status": "Unknown",
+                        "automation_status": "Unknown",
+                        "last_activity_time": None
+                    },
+                    "login": {
+                        "login_status": "Unknown",
+                        "session_status": "Unknown",
+                        "last_login_time": None,
+                        "session_valid_until": None
+                    },
+                    "current_task": {
+                        "task": None,
+                        "started_at": None,
+                        "details": {}
+                    },
+                    "activity_log": [],
+                    "results": {
+                        "last_check_time": None,
+                        "last_availability_result": None,
+                        "last_reservation_result": None
+                    },
+                    "errors": {
+                        "recent_errors": [],
+                        "recent_warnings": []
+                    }
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        status_data = status_tracker.get_status()
+        return {
+            "success": True,
+            "status": status_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except AttributeError as e:
+        logger.error(f"Status tracker attribute error: {e}", exc_info=True)
+        # Return error status instead of raising exception
+        return {
+            "success": False,
+            "status": {
+                "system": {"backend_status": "Error", "automation_status": "Error", "last_activity_time": None},
+                "login": {"login_status": "Unknown", "session_status": "Unknown", "last_login_time": None, "session_valid_until": None},
+                "current_task": {"task": None, "started_at": None, "details": {}},
+                "activity_log": [],
+                "results": {"last_check_time": None, "last_availability_result": None, "last_reservation_result": None},
+                "errors": {"recent_errors": [{"message": f"Status tracker error: {str(e)}", "timestamp": datetime.utcnow().isoformat()}], "recent_warnings": []}
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e)
+        }
+    except Exception as e:
+        logger.error(f"Error getting status: {e}", exc_info=True)
+        # Return error status instead of raising exception
+        return {
+            "success": False,
+            "status": {
+                "system": {"backend_status": "Error", "automation_status": "Error", "last_activity_time": None},
+                "login": {"login_status": "Unknown", "session_status": "Unknown", "last_login_time": None, "session_valid_until": None},
+                "current_task": {"task": None, "started_at": None, "details": {}},
+                "activity_log": [],
+                "results": {"last_check_time": None, "last_availability_result": None, "last_reservation_result": None},
+                "errors": {"recent_errors": [{"message": f"Error getting status: {str(e)}", "timestamp": datetime.utcnow().isoformat()}], "recent_warnings": []}
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": str(e)
+        }
+
+
+async def broadcast_status_update():
+    """Broadcast status update to all SSE clients."""
+    try:
+        if status_tracker is None:
+            return  # Skip if status tracker not initialized
+        
+        status_data = status_tracker.get_status()
+        event = {
+            "type": "status_update",
+            "data": status_data
+        }
+        message = f"data: {json.dumps(event)}\n\n"
+        
+        disconnected = []
+        for queue in sse_connections:
+            try:
+                await queue.put(message)
+            except Exception as e:
+                logger.warning(f"Error sending status update: {e}")
+                disconnected.append(queue)
+        
+        for queue in disconnected:
+            try:
+                sse_connections.remove(queue)
+            except ValueError:
+                pass
+    except Exception as e:
+        logger.error(f"Error broadcasting status update: {e}", exc_info=True)
+
+
+@app.get("/api/events")
+async def stream_events():
+    """Server-Sent Events endpoint for real-time updates."""
+    async def event_generator():
+        # Create a queue for this client
+        queue = asyncio.Queue()
+        sse_connections.append(queue)
+        
+        try:
+            # Send initial connection message with current status
+            try:
+                if status_tracker is not None:
+                    initial_status = status_tracker.get_status()
+                    yield f"data: {json.dumps({'type': 'connected', 'message': 'Connected to event stream', 'status': initial_status})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'connected', 'message': 'Connected to event stream', 'status': None})}\n\n"
+            except Exception as e:
+                logger.error(f"Error getting initial status: {e}")
+                yield f"data: {json.dumps({'type': 'connected', 'message': 'Connected to event stream', 'status': None, 'error': str(e)})}\n\n"
+            
+            # Keep connection alive and send events
+            while True:
+                try:
+                    # Wait for message with timeout to send keepalive
+                    message = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield message
+                except asyncio.TimeoutError:
+                    # Send keepalive ping with current status
+                    try:
+                        if status_tracker is not None:
+                            current_status = status_tracker.get_status()
+                            yield f"data: {json.dumps({'type': 'keepalive', 'status': current_status})}\n\n"
+                        else:
+                            yield f"data: {json.dumps({'type': 'keepalive', 'status': None})}\n\n"
+                    except Exception as e:
+                        logger.error(f"Error getting status for keepalive: {e}")
+                        yield f"data: {json.dumps({'type': 'keepalive', 'status': None})}\n\n"
+                except Exception as e:
+                    logger.error(f"Error in event stream: {e}")
+                    break
+        finally:
+            # Remove queue when client disconnects
+            try:
+                sse_connections.remove(queue)
+            except ValueError:
+                pass
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 if __name__ == "__main__":
