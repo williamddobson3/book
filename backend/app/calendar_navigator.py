@@ -55,12 +55,23 @@ class CalendarNavigator:
     
     @staticmethod
     async def navigate_back_to_week_one(page: Page) -> bool:
-        """Navigate backwards to week 1 using '前週' button."""
+        """Navigate backwards to week 1 using '前週' button.
+        
+        Keeps clicking '前週' until the button is disabled (indicating we're at week 1)
+        or until we verify we're actually on week 1.
+        """
         try:
             logger.info("Navigating backwards to week 1 using '前週' button...")
-            max_backward_clicks = 5
+            max_backward_clicks = 6  # Increased to 6 to handle week 6 → week 1
             
             for click_num in range(max_backward_clicks):
+                # First, check if we're already on week 1
+                is_on_week_one = await CalendarNavigator.is_on_week_one(page)
+                if is_on_week_one:
+                    logger.info(f"Verified we're on week 1 after {click_num} backward clicks")
+                    return True
+                
+                # Find the '前週' button
                 prev_week_button = None
                 prev_week_selectors = [
                     '#last-week',
@@ -76,8 +87,14 @@ class CalendarNavigator:
                         if button:
                             is_disabled = await button.get_attribute('disabled')
                             if is_disabled:
-                                logger.info(f"'前週' button is disabled at click {click_num + 1} - likely at week 1")
-                                return True
+                                logger.info(f"'前週' button is disabled - already at week 1")
+                                # Verify we're actually on week 1
+                                is_on_week_one = await CalendarNavigator.is_on_week_one(page)
+                                if is_on_week_one:
+                                    return True
+                                else:
+                                    logger.warning("'前週' button is disabled but we're not on week 1 - calendar may be in unexpected state")
+                                    return False
                             
                             is_visible = await button.evaluate(
                                 'el => window.getComputedStyle(el).display !== "none"'
@@ -89,8 +106,14 @@ class CalendarNavigator:
                         continue
                 
                 if not prev_week_button:
-                    logger.info(f"'前週' button not found at click {click_num + 1} - likely at week 1")
-                    return True
+                    logger.info(f"'前週' button not found - may already be at week 1")
+                    # Verify we're actually on week 1
+                    is_on_week_one = await CalendarNavigator.is_on_week_one(page)
+                    if is_on_week_one:
+                        return True
+                    else:
+                        logger.warning("'前週' button not found but we're not on week 1 - calendar may be in unexpected state")
+                        return False
                 
                 try:
                     logger.info(f"Clicking '前週' button (click {click_num + 1} of up to {max_backward_clicks})...")
@@ -111,11 +134,23 @@ class CalendarNavigator:
                     await page.wait_for_load_state('networkidle', timeout=30000)
                     await page.wait_for_timeout(2000)
                     await page.wait_for_selector('table#week-info', state='visible', timeout=15000)
+                    
+                    # After navigation, check if we're now on week 1
+                    is_on_week_one = await CalendarNavigator.is_on_week_one(page)
+                    if is_on_week_one:
+                        logger.info(f"Successfully reached week 1 after {click_num + 1} backward clicks")
+                        return True
                 except Exception as e:
                     logger.warning(f"Error clicking '前週' button at click {click_num + 1}: {e}")
             
-            logger.info("Finished navigating backwards - should be at week 1 now")
-            return True
+            # Final check after all clicks
+            is_on_week_one = await CalendarNavigator.is_on_week_one(page)
+            if is_on_week_one:
+                logger.info("Successfully reached week 1 after maximum backward clicks")
+                return True
+            else:
+                logger.warning("Reached maximum backward clicks but still not on week 1 - calendar may be in unexpected state")
+                return False
         except Exception as e:
             logger.warning(f"Error navigating backwards to week 1: {e}")
             return False
