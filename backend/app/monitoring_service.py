@@ -858,7 +858,7 @@ class MonitoringService:
                     if field_cnt == 0:
                         try:
                             # Normalize slot data
-                    slot = self.api_client.normalize_slot_data(slot_raw)
+                            slot = self.api_client.normalize_slot_data(slot_raw)
 
                             # Verify required fields are present after normalization
                             if (
@@ -875,12 +875,12 @@ class MonitoringService:
                                 continue
 
                             # Create unique key for slot
-                    slot_key = self._slot_key(slot)
+                            slot_key = self._slot_key(slot)
                             if slot_key not in current_keys:
                                 # Add to current keys
-                    current_keys.add(slot_key)
+                                current_keys.add(slot_key)
                                 # Add to available slots
-                    available_slots.append(slot)
+                                available_slots.append(slot)
                             else:
                                 # Log duplicate slot
                                 logger.debug(
@@ -913,7 +913,7 @@ class MonitoringService:
             # Store in database
             if available_slots:
             # Store in database
-            stored_slots = await self._store_availability(session, available_slots)
+                stored_slots = await self._store_availability(session, available_slots)
                 logger.info(
                     f"Successfully stored {len(stored_slots)} slots to database"
                 )
@@ -985,28 +985,28 @@ class MonitoringService:
 
         for slot_data in slots:
             try:
-            # Check if slot already exists
-            stmt = select(AvailabilitySlot).where(
+                # Check if slot already exists
+                stmt = select(AvailabilitySlot).where(
                     AvailabilitySlot.use_ymd == slot_data["use_ymd"],
                     AvailabilitySlot.bcd == slot_data["bcd"],
                     AvailabilitySlot.icd == slot_data["icd"],
                     AvailabilitySlot.start_time == slot_data["start_time"],
-            )
-            result = await session.execute(stmt)
-            existing = result.scalar_one_or_none()
+                )
+                result = await session.execute(stmt)
+                existing = result.scalar_one_or_none()
             
-            if existing:
+                if existing:
                     # Update existing slot
                     existing.status = "available"
-                existing.updated_at = datetime.utcnow()
-                existing.detected_at = datetime.utcnow()
+                    existing.updated_at = datetime.utcnow()
+                    existing.detected_at = datetime.utcnow()
                     slot_data["id"] = existing.id
                     logger.debug(
                         f"Updated existing slot: {slot_data.get('bcd_name')} - {slot_data.get('icd_name')} on {slot_data.get('use_ymd')}"
                     )
-            else:
+                else:
                     # Create new slot
-                db_slot = AvailabilitySlot(
+                    db_slot = AvailabilitySlot(
                         use_ymd=slot_data["use_ymd"],
                         bcd=slot_data["bcd"],
                         icd=slot_data["icd"],
@@ -1022,15 +1022,15 @@ class MonitoringService:
                         holiday_flg=slot_data.get("holiday_flg", 0),
                         field_cnt=slot_data.get("field_cnt", 0),
                         status="available",
-                )
-                session.add(db_slot)
-                await session.flush()
+                    )
+                    session.add(db_slot)
+                    await session.flush()
                     slot_data["id"] = db_slot.id
                     logger.debug(
                         f"Created new slot: {slot_data.get('bcd_name')} - {slot_data.get('icd_name')} on {slot_data.get('use_ymd')}"
                     )
             
-            stored_slots.append(slot_data)
+                stored_slots.append(slot_data)
             except Exception as e:
                 logger.error(f"Error storing slot {slot_data}: {e}", exc_info=True)
                 continue
