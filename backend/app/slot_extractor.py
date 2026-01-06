@@ -462,10 +462,19 @@ class SlotExtractor:
                         await page.wait_for_timeout(1000)
 
             # Always start from week 1
+            # After a search, the calendar might default to showing a future week (often week 6)
+            # This is because the website's calendar may default to showing the furthest week
+            # or remember the last viewed week from a previous session
             is_on_week_one = await CalendarNavigator.is_on_week_one(page)
             if not is_on_week_one:
-                logger.info("Not on week 1 - navigating to week 1 first")
+                logger.info("Not on week 1 - calendar likely defaulted to a future week after search. Navigating to week 1 first...")
                 await CalendarNavigator.navigate_back_to_week_one(page)
+                # Verify we're now on week 1 after navigation
+                is_on_week_one_after = await CalendarNavigator.is_on_week_one(page)
+                if not is_on_week_one_after:
+                    logger.warning("Still not on week 1 after backward navigation - calendar may be in unexpected state")
+                else:
+                    logger.info("Successfully navigated to week 1")
 
             # PHASE 1: Extract forward through all 6 weeks (1→2→3→4→5→6)
             # During forward phase, click on slots to select them for booking

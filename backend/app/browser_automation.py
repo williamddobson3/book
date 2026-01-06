@@ -360,7 +360,7 @@ class BrowserAutomation:
                     "Already on date view page or different page - proceeding with booking"
                 )
                 # Navigate to date view only if we're not already there
-                date_view_url = f"{settings.base_url}/rsvWOpeUnreservedDailyAction.do"
+            date_view_url = f"{settings.base_url}/rsvWOpeUnreservedDailyAction.do"
                 if date_view_url not in current_url:
                     logger.warning(
                         "Not on date view page - navigating (this might affect session)"
@@ -369,9 +369,9 @@ class BrowserAutomation:
                                     wait_until='networkidle',
                                     timeout=120000)
                     await page.wait_for_load_state('networkidle', timeout=120000)
-
+            
                     # Fill form on date view page if needed
-                    area_code = slot_data.get('area_code', '1400_0')
+            area_code = slot_data.get('area_code', '1400_0')
                     await FormUtils.select_park(page, area_code)
                     await FormUtils.select_activity(page)
                     await FormUtils.select_date_option(page)
@@ -748,7 +748,7 @@ class BrowserAutomation:
             # Click final booking button and wait for navigation
             async with page.expect_navigation(wait_until='networkidle',
                                               timeout=120000):
-                await page.click('button:has-text("予約")')
+            await page.click('button:has-text("予約")')
             
             # Extract reservation number
             reservation_number = await self.booking_handler.extract_reservation_number(page)
@@ -776,7 +776,7 @@ class BrowserAutomation:
             # Only close if it's a temporary page created just for booking
             if self.session.main_page != page:
                 try:
-                    await page.close()
+            await page.close()
                 except:
                     pass
                 logger.info("Closed temporary booking page")

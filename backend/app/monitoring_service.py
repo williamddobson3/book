@@ -15,17 +15,17 @@ logger = logging.getLogger(__name__)
 
 class MonitoringService:
     """Service for monitoring availability."""
-
+    
     def __init__(self, api_client: ShinagawaAPIClient, browser_automation=None):
         self.api_client = api_client
         self.browser_automation = browser_automation
         self.previous_slot_keys: Set[str] = set()
         self.is_running = False
-
+    
     def _slot_key(self, slot: Dict) -> str:
         """Create unique key for slot."""
         return f"{slot.get('use_ymd')}_{slot.get('bcd')}_{slot.get('icd')}_{slot.get('start_time')}_{slot.get('end_time')}"
-
+    
     def _is_page_valid(self, page) -> bool:
         """Check if page is valid and not closed.
 
@@ -130,11 +130,11 @@ class MonitoringService:
         self, session: AsyncSession, on_status_update=None
     ) -> List[Dict]:
         """Scan all parks for current availability.
-
+        
         Args:
             session: Database session
             on_status_update: Optional callback function to call when status updates (for real-time frontend updates)
-
+            
         Returns:
             List of available slots
         """
@@ -829,7 +829,7 @@ class MonitoringService:
                         error_msg, {"park": park["name"], "park_index": park_index}
                     )
                     continue
-
+            
             # Normalize and filter available slots
             logger.info(f"=== STARTING SLOT NORMALIZATION AND STORAGE ===")
             logger.info(f"Total raw slots collected from all parks: {len(all_slots)}")
@@ -858,7 +858,7 @@ class MonitoringService:
                     if field_cnt == 0:
                         try:
                             # Normalize slot data
-                            slot = self.api_client.normalize_slot_data(slot_raw)
+                    slot = self.api_client.normalize_slot_data(slot_raw)
 
                             # Verify required fields are present after normalization
                             if (
@@ -875,12 +875,12 @@ class MonitoringService:
                                 continue
 
                             # Create unique key for slot
-                            slot_key = self._slot_key(slot)
+                    slot_key = self._slot_key(slot)
                             if slot_key not in current_keys:
                                 # Add to current keys
-                                current_keys.add(slot_key)
+                    current_keys.add(slot_key)
                                 # Add to available slots
-                                available_slots.append(slot)
+                    available_slots.append(slot)
                             else:
                                 # Log duplicate slot
                                 logger.debug(
@@ -912,8 +912,8 @@ class MonitoringService:
 
             # Store in database
             if available_slots:
-                # Store in database
-                stored_slots = await self._store_availability(session, available_slots)
+            # Store in database
+            stored_slots = await self._store_availability(session, available_slots)
                 logger.info(
                     f"Successfully stored {len(stored_slots)} slots to database"
                 )
@@ -922,10 +922,10 @@ class MonitoringService:
                     f"No slots to store - all {len(all_slots)} raw slots were filtered out or had errors"
                 )
                 stored_slots = []
-
+            
             # Log monitoring
             await self._log_scan(session, len(available_slots))
-
+            
             # Update status: all parks scanned
             status_tracker.add_activity_log(
                 "scanning",
@@ -944,20 +944,20 @@ class MonitoringService:
 
             self.previous_slot_keys = current_keys
             return stored_slots
-
+            
         except Exception as e:
             logger.error(f"Error scanning availability: {e}")
             raise
-
+    
     async def detect_new_availability(
         self, session: AsyncSession, on_status_update=None
     ) -> List[Dict]:
         """Detect newly available slots.
-
+        
         Args:
             session: Database session
             on_status_update: Optional callback function to call when status updates (for real-time frontend updates)
-
+            
         Returns:
             List of newly detected slots
         """
@@ -965,17 +965,17 @@ class MonitoringService:
             session, on_status_update=on_status_update
         )
         current_keys = {self._slot_key(s) for s in current_slots}
-
+        
         # Find new slots
         new_keys = current_keys - self.previous_slot_keys
         new_slots = [s for s in current_slots if self._slot_key(s) in new_keys]
-
+        
         if new_slots:
             logger.info(f"Detected {len(new_slots)} new available slots")
             await self._log_new_slots(session, new_slots)
-
+        
         return new_slots
-
+    
     async def _store_availability(
         self, session: AsyncSession, slots: List[Dict]
     ) -> List[Dict]:
@@ -985,28 +985,28 @@ class MonitoringService:
 
         for slot_data in slots:
             try:
-                # Check if slot already exists
-                stmt = select(AvailabilitySlot).where(
+            # Check if slot already exists
+            stmt = select(AvailabilitySlot).where(
                     AvailabilitySlot.use_ymd == slot_data["use_ymd"],
                     AvailabilitySlot.bcd == slot_data["bcd"],
                     AvailabilitySlot.icd == slot_data["icd"],
                     AvailabilitySlot.start_time == slot_data["start_time"],
-                )
-                result = await session.execute(stmt)
-                existing = result.scalar_one_or_none()
-
-                if existing:
+            )
+            result = await session.execute(stmt)
+            existing = result.scalar_one_or_none()
+            
+            if existing:
                     # Update existing slot
                     existing.status = "available"
-                    existing.updated_at = datetime.utcnow()
-                    existing.detected_at = datetime.utcnow()
+                existing.updated_at = datetime.utcnow()
+                existing.detected_at = datetime.utcnow()
                     slot_data["id"] = existing.id
                     logger.debug(
                         f"Updated existing slot: {slot_data.get('bcd_name')} - {slot_data.get('icd_name')} on {slot_data.get('use_ymd')}"
                     )
-                else:
+            else:
                     # Create new slot
-                    db_slot = AvailabilitySlot(
+                db_slot = AvailabilitySlot(
                         use_ymd=slot_data["use_ymd"],
                         bcd=slot_data["bcd"],
                         icd=slot_data["icd"],
@@ -1022,23 +1022,23 @@ class MonitoringService:
                         holiday_flg=slot_data.get("holiday_flg", 0),
                         field_cnt=slot_data.get("field_cnt", 0),
                         status="available",
-                    )
-                    session.add(db_slot)
-                    await session.flush()
+                )
+                session.add(db_slot)
+                await session.flush()
                     slot_data["id"] = db_slot.id
                     logger.debug(
                         f"Created new slot: {slot_data.get('bcd_name')} - {slot_data.get('icd_name')} on {slot_data.get('use_ymd')}"
                     )
-
-                stored_slots.append(slot_data)
+            
+            stored_slots.append(slot_data)
             except Exception as e:
                 logger.error(f"Error storing slot {slot_data}: {e}", exc_info=True)
                 continue
-
+        
         await session.commit()
         logger.info(f"Successfully stored {len(stored_slots)} slots to database")
         return stored_slots
-
+    
     async def _log_scan(self, session: AsyncSession, slot_count: int):
         """Log scan activity."""
         log = MonitoringLog(
@@ -1049,7 +1049,7 @@ class MonitoringService:
         )
         session.add(log)
         await session.commit()
-
+    
     async def _log_new_slots(self, session: AsyncSession, slots: List[Dict]):
         """Log newly detected slots."""
         log = MonitoringLog(
@@ -1060,7 +1060,7 @@ class MonitoringService:
         )
         session.add(log)
         await session.commit()
-
+    
     async def get_available_slots_from_db(
         self,
         session: AsyncSession,
@@ -1070,19 +1070,19 @@ class MonitoringService:
     ) -> List[AvailabilitySlot]:
         """Get available slots from database with filters."""
         stmt = select(AvailabilitySlot).where(AvailabilitySlot.status == "available")
-
+        
         if park_name:
             stmt = stmt.where(AvailabilitySlot.bcd_name.contains(park_name))
-
+        
         if date_from:
             date_from_int = int(date_from.strftime("%Y%m%d"))
             stmt = stmt.where(AvailabilitySlot.use_ymd >= date_from_int)
-
+        
         if date_to:
             date_to_int = int(date_to.strftime("%Y%m%d"))
             stmt = stmt.where(AvailabilitySlot.use_ymd <= date_to_int)
-
+        
         stmt = stmt.order_by(AvailabilitySlot.use_ymd, AvailabilitySlot.start_time)
-
+        
         result = await session.execute(stmt)
         return list(result.scalars().all())

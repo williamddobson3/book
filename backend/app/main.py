@@ -398,20 +398,20 @@ async def scan_availability(
         status_tracker.set_current_task("Scanning availability...", {"action": "manual_scan"})
         await broadcast_status_update()
         
-        slots = await monitoring_service.scan_availability(session)
+            slots = await monitoring_service.scan_availability(session)
         
-        # Convert to dict format for response
-        slot_dicts = []
-        for slot in slots:
-            slot_dicts.append({
-                'id': slot.get('id', 0),
-                'use_ymd': slot['use_ymd'],
-                'bcd_name': slot['bcd_name'],
-                'icd_name': slot['icd_name'],
-                'start_time_display': slot['start_time_display'],
-                'end_time_display': slot['end_time_display'],
-                'status': slot.get('status', 'available')
-            })
+            # Convert to dict format for response
+            slot_dicts = []
+            for slot in slots:
+                slot_dicts.append({
+                    'id': slot.get('id', 0),
+                    'use_ymd': slot['use_ymd'],
+                    'bcd_name': slot['bcd_name'],
+                    'icd_name': slot['icd_name'],
+                    'start_time_display': slot['start_time_display'],
+                    'end_time_display': slot['end_time_display'],
+                    'status': slot.get('status', 'available')
+                })
         
         # Update status
         status_tracker.set_availability_result(
@@ -425,11 +425,11 @@ async def scan_availability(
         if slots:
             await broadcast_availability_update()
         
-        return {
-            "success": True,
-            "slots_found": len(slots),
-            "slots": slot_dicts
-        }
+            return {
+                "success": True,
+                "slots_found": len(slots),
+                "slots": slot_dicts
+            }
     except Exception as e:
         error_msg = f"Scan error: {str(e)}"
         logger.error(error_msg)
