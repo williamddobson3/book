@@ -806,7 +806,7 @@ class BrowserAutomation:
         
         Delegated to SlotExtractor for backward compatibility.
         """
-        return await self.slot_extractor.extract_slots_from_weekly_calendar(page)
+        return await self.slot_extractor.extract_slots_from_weekly_calendar(page, browser_automation=self)
     
     async def _extract_slots_from_current_week(
             self,

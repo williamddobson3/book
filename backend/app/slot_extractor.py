@@ -423,7 +423,7 @@ class SlotExtractor:
         return week_slots, slot_clicked_flag, clicked_cell_ids
 
     async def extract_slots_from_weekly_calendar(
-            self, page: Page) -> Tuple[List[Dict], int]:
+            self, page: Page, browser_automation=None) -> Tuple[List[Dict], int]:
         """Extract available slots from weekly calendar view (施設ごと).
         
         For each court: Extract forward through all 6 weeks (1→2→3→4→5→6),
@@ -431,6 +431,7 @@ class SlotExtractor:
         
         Args:
             page: Playwright page object
+            browser_automation: Optional BrowserAutomation instance for session checks
             
         Returns:
             Tuple of (list of slot dictionaries, flag)
@@ -490,6 +491,23 @@ class SlotExtractor:
 
                 # Navigate to next week (if not last week)
                 if week_num < max_weeks - 1:
+                    # Check session before navigating to next week (6-week navigation takes time, session may expire)
+                    if browser_automation:
+                        try:
+                            is_logged_in = await browser_automation.login_handler.is_logged_in(page)
+                            if not is_logged_in:
+                                logger.warning(f"Session expired during week {week_num + 1} navigation - re-logging in...")
+                                await browser_automation.check_and_renew_login()
+                                # Get the page again after re-login
+                                page = browser_automation.session.main_page
+                                if not page:
+                                    logger.error("Could not get page after re-login - aborting week navigation")
+                                    break
+                                # Need to navigate back to the search results and court selection
+                                logger.warning("Session was renewed - may need to re-select court. Continuing with current page...")
+                        except Exception as e:
+                            logger.warning(f"Error checking session during week navigation: {e}")
+                    
                     # Navigate forward using "翌週" (Next Week) button
                     logger.info(
                         f"Looking for '翌週' (Next Week) button to navigate to week {week_num + 2}..."
@@ -532,6 +550,22 @@ class SlotExtractor:
 
                 # Navigate to previous week (if not week 1)
                 if week_num > 0:
+                    # Check session before navigating to previous week (6-week navigation takes time, session may expire)
+                    if browser_automation:
+                        try:
+                            is_logged_in = await browser_automation.login_handler.is_logged_in(page)
+                            if not is_logged_in:
+                                logger.warning(f"Session expired during week {week_num + 1} backward navigation - re-logging in...")
+                                await browser_automation.check_and_renew_login()
+                                # Get the page again after re-login
+                                page = browser_automation.session.main_page
+                                if not page:
+                                    logger.error("Could not get page after re-login - aborting week navigation")
+                                    break
+                                logger.warning("Session was renewed - may need to re-select court. Continuing with current page...")
+                        except Exception as e:
+                            logger.warning(f"Error checking session during backward week navigation: {e}")
+                    
                     # Navigate backward using "前週" (Previous Week) button
                     logger.info(
                         f"Looking for '前週' (Previous Week) button to navigate to week {week_num}..."

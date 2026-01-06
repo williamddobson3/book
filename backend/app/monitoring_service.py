@@ -564,9 +564,10 @@ class MonitoringService:
 
                                                 # Extract slots for this court
                                                 # _extract_slots_from_weekly_calendar returns (slots, slots_clicked_flag) tuple
+                                                # Pass browser_automation instance for session checks during 6-week navigation
                                                 slots, slots_clicked_flag = (
                                                     await self.browser_automation._extract_slots_from_weekly_calendar(
-                                                        page
+                                                        page, browser_automation=self.browser_automation
                                                     )
                                                 )
                                                 result = {
