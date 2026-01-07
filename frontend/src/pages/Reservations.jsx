@@ -6,6 +6,7 @@ import { useSSE } from '../hooks/useSSE'
 
 export default function Reservations() {
   const [reservations, setReservations] = useState([])
+  const [reservationsByDate, setReservationsByDate] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Handle SSE events for real-time reservation updates
@@ -14,15 +15,51 @@ export default function Reservations() {
       const newReservation = event.data
       console.log('New reservation received via SSE:', newReservation)
       
-      // Add new reservation to the top of the list
+      // Update flat list (for backward compatibility)
       setReservations((prev) => {
         // Check if reservation already exists (avoid duplicates)
         const exists = prev.some(r => r.id === newReservation.id)
         if (exists) {
           return prev
         }
-        // Add to the beginning of the list (most recent first)
-        return [newReservation, ...prev]
+        // Add to the list
+        return [...prev, newReservation]
+      })
+      
+      // Update grouped by date structure
+      setReservationsByDate((prev) => {
+        const dateKey = newReservation.use_ymd.toString()
+        const dateInt = parseInt(dateKey)
+        
+        // Find if date group exists
+        const dateIndex = prev.findIndex(group => group.date === dateInt)
+        
+        // Check if reservation already exists
+        const exists = prev.some(group => 
+          group.reservations.some(r => r.id === newReservation.id)
+        )
+        if (exists) {
+          return prev
+        }
+        
+        if (dateIndex >= 0) {
+          // Date group exists, add reservation to it
+          const updated = [...prev]
+          updated[dateIndex] = {
+            ...updated[dateIndex],
+            reservations: [...updated[dateIndex].reservations, newReservation]
+              .sort((a, b) => a.start_time_display.localeCompare(b.start_time_display))
+          }
+          return updated
+        } else {
+          // New date group, add it and sort by date
+          const newGroup = {
+            date: dateInt,
+            reservations: [newReservation]
+          }
+          const updated = [...prev, newGroup]
+          return updated.sort((a, b) => a.date - b.date)
+        }
       })
     }
   }, [])
@@ -38,7 +75,26 @@ export default function Reservations() {
     try {
       setLoading(true)
       const response = await api.getReservations(100)
-      setReservations(response.reservations || [])
+      
+      // Use grouped_by_date if available, otherwise fallback to flat list
+      if (response.grouped_by_date && response.grouped_by_date.length > 0) {
+        setReservationsByDate(response.grouped_by_date)
+        // Also keep flat list for backward compatibility with SSE updates
+        setReservations(response.reservations || [])
+      } else {
+        // Fallback: group manually from flat list
+        const grouped = {}
+        ;(response.reservations || []).forEach((r) => {
+          const dateKey = r.use_ymd.toString()
+          if (!grouped[dateKey]) {
+            grouped[dateKey] = { date: r.use_ymd, reservations: [] }
+          }
+          grouped[dateKey].reservations.push(r)
+        })
+        const sortedDates = Object.keys(grouped).sort((a, b) => parseInt(a) - parseInt(b))
+        setReservationsByDate(sortedDates.map(key => grouped[key]))
+        setReservations(response.reservations || [])
+      }
     } catch (error) {
       console.error('Error loading reservations:', error)
       alert('予約一覧の取得に失敗しました: ' + error.message)
@@ -110,7 +166,7 @@ export default function Reservations() {
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
-            予約履歴 ({reservations.length})
+            予約履歴 ({reservations.length} 件)
           </h3>
         </div>
         <div className="p-6">
@@ -119,71 +175,88 @@ export default function Reservations() {
               <Clock className="h-8 w-8 text-gray-400 animate-pulse mx-auto mb-4" />
               <p className="text-gray-500">読み込み中...</p>
             </div>
-          ) : reservations.length > 0 ? (
-            <div className="space-y-4">
-              {reservations.map((reservation) => (
-                <div
-                  key={reservation.id}
-                  className="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-2">
-                        <MapPin className="h-5 w-5 text-gray-500 mr-2" />
-                        <h4 className="text-lg font-semibold text-gray-900">
-                          {reservation.bcd_name} - {reservation.icd_name}
-                        </h4>
-                      </div>
-                      <div className="ml-7 space-y-2">
-                        <div className="flex items-center text-gray-600">
-                          <Calendar className="h-4 w-4 mr-2" />
-                          {formatDate(reservation.use_ymd)}
-                        </div>
-                        <div className="flex items-center text-gray-600">
-                          <Clock className="h-4 w-4 mr-2" />
-                          {reservation.start_time_display} ~ {reservation.end_time_display}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          利用人数: {reservation.user_count}人
-                        </div>
-                        {reservation.event_name && (
-                          <div className="text-sm text-gray-600">
-                            催し物名: {reservation.event_name}
+          ) : reservationsByDate.length > 0 ? (
+            <div className="space-y-6">
+              {reservationsByDate.map((dateGroup) => (
+                <div key={dateGroup.date} className="border-2 border-primary-300 rounded-lg overflow-hidden shadow-lg">
+                  {/* Date Header */}
+                  <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-5 border-b-2 border-primary-700">
+                    <div className="flex items-center">
+                      <Calendar className="h-6 w-6 text-white mr-3" />
+                      <h3 className="text-2xl font-bold text-white">
+                        {formatDate(dateGroup.date)}
+                      </h3>
+                      <span className="ml-auto text-base font-semibold text-white bg-primary-700 px-3 py-1 rounded-full">
+                        {dateGroup.reservations.length} 件
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Reservations for this date */}
+                  <div className="p-6 space-y-4">
+                    {dateGroup.reservations.map((reservation) => (
+                      <div
+                        key={reservation.id}
+                        className="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow bg-white"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center mb-2">
+                              <MapPin className="h-5 w-5 text-gray-500 mr-2" />
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                {reservation.bcd_name} - {reservation.icd_name}
+                              </h4>
+                            </div>
+                            <div className="ml-7 space-y-2">
+                              <div className="flex items-center text-gray-600">
+                                <Clock className="h-4 w-4 mr-2" />
+                                {reservation.start_time_display} ~ {reservation.end_time_display}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                利用人数: {reservation.user_count}人
+                              </div>
+                              {reservation.event_name && (
+                                <div className="text-sm text-gray-600">
+                                  催し物名: {reservation.event_name}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
+                          <div className="text-right">
+                            <div className="flex items-center justify-end mb-2">
+                              {getStatusIcon(reservation.status)}
+                              <span
+                                className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                                  reservation.status
+                                )}`}
+                              >
+                                {getStatusText(reservation.status)}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              予約番号
+                            </div>
+                            <div className="text-sm font-mono font-semibold text-gray-900">
+                              {reservation.reservation_number || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-2">
+                              {(() => {
+                                try {
+                                  if (!reservation.created_at) return 'N/A'
+                                  const utcDate = new Date(reservation.created_at)
+                                  if (isNaN(utcDate.getTime())) return 'N/A'
+                                  // Convert UTC to GMT+9 (Japan Standard Time) by adding 9 hours
+                                  const jstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000))
+                                  return format(jstDate, 'yyyy/MM/dd HH:mm')
+                                } catch {
+                                  return 'N/A'
+                                }
+                              })()}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center justify-end mb-2">
-                        {getStatusIcon(reservation.status)}
-                        <span
-                          className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                            reservation.status
-                          )}`}
-                        >
-                          {getStatusText(reservation.status)}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        予約番号
-                      </div>
-                      <div className="text-sm font-mono font-semibold text-gray-900">
-                        {reservation.reservation_number}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-2">
-                        {(() => {
-                          try {
-                            const utcDate = new Date(reservation.created_at)
-                            if (isNaN(utcDate.getTime())) return 'N/A'
-                            // Convert UTC to GMT+9 (Japan Standard Time) by adding 9 hours
-                            const jstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000))
-                            return format(jstDate, 'yyyy/MM/dd HH:mm')
-                          } catch {
-                            return 'N/A'
-                          }
-                        })()}
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               ))}

@@ -7,11 +7,19 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
     plugins: [react()],
     server: {
+        host: '0.0.0.0',
         port: 5173,
         proxy: {
             '/api': {
-                target: 'http://localhost:8001',
+                target: 'https://tereasa-unanaemic-kaydence.ngrok-free.dev/',
                 changeOrigin: true,
+                secure: false,
+                configure: (proxy, _options) => {
+                    proxy.on('proxyReq', (proxyReq, req, _res) => {
+                        // Add ngrok-skip-browser-warning header to bypass warning page
+                        proxyReq.setHeader('ngrok-skip-browser-warning', 'true');
+                    });
+                },
             }
         }
     }

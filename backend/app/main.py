@@ -34,7 +34,13 @@ app = FastAPI(title="Shinagawa Booking System", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite default port
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://localhost:3000",
+        "http://65.109.83.125:5173",  # VPS frontend
+        "http://65.109.83.125",
+        "https://65.109.83.125:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -643,12 +649,46 @@ async def get_reservations(
     limit: int = 100,
     session: AsyncSession = Depends(get_db)
 ):
-    """Get recent reservations."""
+    """Get recent reservations, grouped by date."""
     try:
         reservations = await booking_service.get_reservations(session, limit=limit)
+        
+        # Group reservations by date (use_ymd)
+        reservations_by_date = {}
+        for r in reservations:
+            date_key = str(r.use_ymd)
+            if date_key not in reservations_by_date:
+                reservations_by_date[date_key] = []
+            
+            reservations_by_date[date_key].append({
+                "id": r.id,
+                "reservation_number": r.reservation_number,
+                "bcd_name": r.bcd_name,
+                "icd_name": r.icd_name,
+                "start_time_display": r.start_time_display,
+                "end_time_display": r.end_time_display,
+                "use_ymd": r.use_ymd,
+                "user_count": r.user_count,
+                "event_name": r.event_name,
+                "status": r.status,
+                "created_at": r.created_at.isoformat() if r.created_at else None
+            })
+        
+        # Sort dates numerically (earliest first) and return as list
+        sorted_dates = sorted(reservations_by_date.keys(), key=lambda x: int(x))
+        grouped_reservations = [
+            {
+                "date": int(date_key),
+                "reservations": reservations_by_date[date_key]
+            }
+            for date_key in sorted_dates
+        ]
+        
         return {
             "success": True,
             "count": len(reservations),
+            "grouped_by_date": grouped_reservations,
+            # Keep backward compatibility - flat list
             "reservations": [
                 {
                     "id": r.id,
@@ -659,8 +699,9 @@ async def get_reservations(
                     "end_time_display": r.end_time_display,
                     "use_ymd": r.use_ymd,
                     "user_count": r.user_count,
+                    "event_name": r.event_name,
                     "status": r.status,
-                    "created_at": r.created_at
+                    "created_at": r.created_at.isoformat() if r.created_at else None
                 }
                 for r in reservations
             ]

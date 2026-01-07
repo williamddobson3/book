@@ -16,16 +16,27 @@ logger = logging.getLogger(__name__)
 class SearchHandler:
     """Handles search operations for availability."""
     
-    def __init__(self, main_page: Optional[Page] = None):
+    def __init__(self, main_page: Optional[Page] = None, slot_exists_checker=None):
         """Initialize search handler.
         
         Args:
             main_page: Main page to use for searches (maintains session)
+            slot_exists_checker: Optional async callable that takes (use_ymd, bcd, icd, start_time) 
+                                and returns bool indicating if slot exists in database.
+                                If slot exists, it will be skipped (user cancelled it on site).
         """
         self.main_page = main_page
         self.results_checker = ResultsChecker()
-        self.slot_extractor = SlotExtractor()
+        self.slot_extractor = SlotExtractor(slot_exists_checker=slot_exists_checker)
         self.booking_handler = BookingHandler()
+    
+    def set_slot_exists_checker(self, slot_exists_checker):
+        """Update the slot existence checker for the slot extractor.
+        
+        Args:
+            slot_exists_checker: Async callable that checks if slot exists in database.
+        """
+        self.slot_extractor.slot_exists_checker = slot_exists_checker
     
     async def search_availability_via_form(
             self,
@@ -33,7 +44,8 @@ class SearchHandler:
             area_code: str,
             park_name: str = None,
             icd: str = None,
-            click_reserve_button: bool = True) -> Dict:
+            click_reserve_button: bool = True,
+            skip_form_expansion: bool = False) -> Dict:
         """Search for availability by filling out the search form in the browser.
         
         This method properly fills out the form as required by the server:
@@ -50,6 +62,9 @@ class SearchHandler:
             click_reserve_button: If True, click "予約" button when slots are found.
                                  If False, only extract slots without clicking "予約".
                                  Default is True for backward compatibility.
+            skip_form_expansion: If True, skip expanding the form (use when switching courts in same park).
+                                If False, expand form when needed (use when switching parks).
+                                Default is False for backward compatibility.
             
         Returns:
             Search results dictionary with 'success', 'page', 'slots', and 'slots_clicked_flag'
@@ -69,6 +84,10 @@ class SearchHandler:
                 or  # Facility-based search results page
                 'ホーム画面' in await page.title())
 
+            # Check if we're on the results page and just switching courts (same park)
+            is_results_page = 'rsvWOpeInstSrchVacantAction.do' in current_url
+            is_switching_courts_only = skip_form_expansion and icd and is_results_page
+            
             if is_valid_page:
                 logger.info(
                     "Already on valid logged-in page - checking if search form needs to be expanded..."
@@ -77,11 +96,21 @@ class SearchHandler:
                 await page.wait_for_load_state('networkidle', timeout=30000)
                 await page.wait_for_timeout(1000)
 
-                # If we're on the results page, the search form might be collapsed
-                # Check if form is collapsed and needs to be expanded
-                # This applies to both rsvWOpeUnreservedDailyAction.do and rsvWOpeInstSrchVacantAction.do
-                if 'rsvWOpeUnreservedDailyAction.do' in current_url or 'rsvWOpeInstSrchVacantAction.do' in current_url:
-                    await self._expand_search_form_if_collapsed(page)
+                # If we're switching courts within the same park, skip form expansion
+                if is_switching_courts_only:
+                    logger.info(
+                        f"Skipping form expansion - switching court within same park (ICD: {icd})"
+                    )
+                    # Directly select court in results page dropdown
+                    await self._select_court_in_results_page(page, icd)
+                    # Skip form filling - go directly to slot extraction
+                    # We'll handle the rest after this condition check
+                elif 'rsvWOpeUnreservedDailyAction.do' in current_url or 'rsvWOpeInstSrchVacantAction.do' in current_url:
+                    # Only expand form if we're switching parks (not just courts)
+                    if not skip_form_expansion:
+                        await self._expand_search_form_if_collapsed(page)
+                    else:
+                        logger.info("Skipping form expansion as requested")
             else:
                 # Only navigate if we're on a completely different page (shouldn't happen after login)
                 logger.warning(
@@ -99,58 +128,74 @@ class SearchHandler:
                 await page.wait_for_load_state('networkidle', timeout=120000)
                 await page.wait_for_timeout(2000)
 
-            # Fill search form using FormUtils
-            await FormUtils.select_date_option(page)
-            await FormUtils.select_park(page, area_code)
-            
-            if icd:
-                logger.info(f"Selecting specific court (ICD: {icd})...")
-                try:
-                    await page.wait_for_timeout(1000)  # Wait for options to load
-                    facility_selectors = [
-                        'select#iname', 'select[name*="icd"]',
-                        'select[name*="施設"]'
-                    ]
-                    facility_selected = False
-                    for selector in facility_selectors:
-                        try:
-                            element = await page.query_selector(selector)
-                            if element:
-                                await page.select_option(selector, value=icd)
-                                await page.wait_for_timeout(1000)
-                                facility_selected = True
-                                logger.info(
-                                    f"Selected court {icd} using selector: {selector}"
-                                )
-                                break
-                        except:
-                            continue
+            # If we're just switching courts within the same park, skip form filling
+            if is_switching_courts_only:
+                logger.info(
+                    f"Court switching mode - skipping form filling, directly selecting court {icd} in results page"
+                )
+                # Court selection was already done above, now just proceed to slot extraction
+                # Ensure "施設ごと" tab is active
+                await self._ensure_facility_tab_active(page)
+                
+                # Check if results are available
+                has_results, has_reservation_buttons = await self.results_checker.check_results_available(page)
+                
+                # Only check for "さらに表示" if there are results
+                if has_results:
+                    await self._click_load_more_button(page)
+            else:
+                # Normal flow: Fill search form using FormUtils
+                await FormUtils.select_date_option(page)
+                await FormUtils.select_park(page, area_code)
+                
+                if icd:
+                    logger.info(f"Selecting specific court (ICD: {icd}) in search form...")
+                    try:
+                        await page.wait_for_timeout(1000)  # Wait for options to load
+                        facility_selectors = [
+                            'select#iname', 'select[name*="icd"]',
+                            'select[name*="施設"]'
+                        ]
+                        facility_selected = False
+                        for selector in facility_selectors:
+                            try:
+                                element = await page.query_selector(selector)
+                                if element:
+                                    await page.select_option(selector, value=icd)
+                                    await page.wait_for_timeout(1000)
+                                    facility_selected = True
+                                    logger.info(
+                                        f"Selected court {icd} using selector: {selector}"
+                                    )
+                                    break
+                            except:
+                                continue
 
-                    if not facility_selected:
+                        if not facility_selected:
+                            logger.warning(
+                                f"Could not select court {icd} in search form - will try in results page"
+                            )
+                    except Exception as e:
                         logger.warning(
-                            f"Could not select court {icd} in search form - will try in results page"
+                            f"Failed to select court in search form: {e}, will try in results page"
                         )
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to select court in search form: {e}, will try in results page"
-                    )
 
-            await FormUtils.select_activity(page)
-            await FormUtils.click_search_button(page)
+                await FormUtils.select_activity(page)
+                await FormUtils.click_search_button(page)
 
-            # Ensure "施設ごと" (By Facility) tab is active - do NOT click "日付順"
-            await self._ensure_facility_tab_active(page)
+                # Ensure "施設ごと" (By Facility) tab is active - do NOT click "日付順"
+                await self._ensure_facility_tab_active(page)
 
-            # Check if results are available
-            has_results, has_reservation_buttons = await self.results_checker.check_results_available(page)
+                # Check if results are available
+                has_results, has_reservation_buttons = await self.results_checker.check_results_available(page)
 
-            # Only check for "さらに表示" if there are results
-            if has_results:
-                await self._click_load_more_button(page)
+                # Only check for "さらに表示" if there are results
+                if has_results:
+                    await self._click_load_more_button(page)
 
-            # If icd was specified, select the court in the results page before extracting slots
-            if icd:
-                await self._select_court_in_results_page(page, icd)
+                # If icd was specified and not already handled, select the court in the results page before extracting slots
+                if icd and not is_switching_courts_only:
+                    await self._select_court_in_results_page(page, icd)
 
             # Extract available slots from weekly calendar view (施設ごと)
             slots = []

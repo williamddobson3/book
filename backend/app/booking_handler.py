@@ -4,6 +4,7 @@ from typing import Dict, Optional, List
 from playwright.async_api import Page
 
 from app.form_utils import FormUtils
+from app.network_capture import NetworkCapture
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +12,16 @@ logger = logging.getLogger(__name__)
 class BookingHandler:
     """Handles the booking/reservation flow."""
     
-    def __init__(self):
-        pass
+    def __init__(self, enable_network_capture: bool = False):
+        """
+        Initialize booking handler.
+        
+        Args:
+            enable_network_capture: If True, capture network requests during booking
+                                   (useful for reverse-engineering API endpoints)
+        """
+        self.enable_network_capture = enable_network_capture
+        self.network_capture: Optional[NetworkCapture] = None
     
     async def click_reservation_button_if_slots_found(
             self, page: Page, slots_clicked_flag: int,
@@ -30,22 +39,22 @@ class BookingHandler:
         Returns:
             True if button was clicked successfully, False otherwise
         """
-        if slots_clicked_flag != 1:
-            logger.info(
-                f"Slots clicked flag is {slots_clicked_flag} - no slots were clicked, skipping '予約' button click"
-            )
-            return False
-
-        logger.info(
-            f"Slots clicked flag is 1 - clicking '予約' button to proceed to reservation page (found {len(slots)} slot(s))..."
-        )
+        # Start network capture if enabled
+        if self.enable_network_capture:
+            self.network_capture = NetworkCapture()
+            await self.network_capture.start_capture(page)
+            logger.info("🎯 Network capture enabled for booking flow")
+        
         try:
-            # Wait for the button to be visible
-            await page.wait_for_selector('#btn-go',
-                                         state='visible',
-                                         timeout=10000)
+            if slots_clicked_flag != 1:
+                logger.info(
+                    f"Slots clicked flag is {slots_clicked_flag} - no slots were clicked, skipping '予約' button click"
+                )
+                return False
 
-            # Find and click the correct "予約" button
+            logger.info(
+                f"Slots clicked flag is 1 - clicking '予約' button to proceed to reservation page (found {len(slots)} slot(s))..."
+            )
             reserve_button = None
             btn_go_selectors = [
                 '#btn-go',  # Primary selector
@@ -101,6 +110,13 @@ class BookingHandler:
                     await self._handle_reservation_confirmation_page(page)
                     await self._handle_reservation_completion_page(page)
                     
+                    # Stop network capture and save results
+                    if self.enable_network_capture and self.network_capture:
+                        self.network_capture.stop_capture()
+                        self.network_capture.save_to_file('booking_requests.json')
+                        self.network_capture.print_summary()
+                        self.network_capture.save_api_template('booking_api_template.py')
+                    
                     return True
                 else:
                     logger.warning(
@@ -116,6 +132,12 @@ class BookingHandler:
             )
             import traceback
             logger.warning(traceback.format_exc())
+            
+            # Stop network capture even on error
+            if self.enable_network_capture and self.network_capture:
+                self.network_capture.stop_capture()
+                self.network_capture.save_to_file('booking_requests_error.json')
+            
             return False
 
     async def _handle_terms_of_use_page(self, page: Page) -> bool:

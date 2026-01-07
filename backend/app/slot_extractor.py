@@ -13,8 +13,17 @@ logger = logging.getLogger(__name__)
 class SlotExtractor:
     """Extracts available slots from calendar views."""
     
-    def __init__(self):
+    def __init__(self, slot_exists_checker=None):
+        """
+        Initialize SlotExtractor.
+        
+        Args:
+            slot_exists_checker: Optional async callable that takes (use_ymd, bcd, icd, start_time) 
+                                and returns bool indicating if slot exists in database.
+                                If slot exists, it will be skipped (user cancelled it on site).
+        """
         self.verifier = CellSelectionVerifier()
+        self.slot_exists_checker = slot_exists_checker
     
     async def extract_slots_from_current_week(
             self,
@@ -204,6 +213,23 @@ class SlotExtractor:
                         icd = match.group(2)
                         start_time = int(match.group(4))
                         end_time = int(match.group(5))
+
+                        # Check if slot already exists in database (user cancelled it on site)
+                        # If it exists, skip clicking/extracting this slot
+                        if self.slot_exists_checker:
+                            try:
+                                slot_exists = await self.slot_exists_checker(use_ymd, bcd, icd, start_time)
+                                if slot_exists:
+                                    logger.info(
+                                        f"Skipping slot {cell_id} (use_ymd={use_ymd}, bcd={bcd}, icd={icd}, start_time={start_time}) - "
+                                        f"already exists in database (user cancelled it on site)"
+                                    )
+                                    continue  # Skip this slot - user already cancelled it
+                            except Exception as e:
+                                logger.warning(
+                                    f"Error checking if slot exists in database: {e}, continuing with slot extraction"
+                                )
+                                # Continue processing if check fails
 
                         # Get park and facility names from table caption
                         park_name = ""

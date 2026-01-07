@@ -170,8 +170,12 @@ class BookingService:
         session: AsyncSession,
         limit: int = 100
     ) -> list[Reservation]:
-        """Get recent reservations."""
-        stmt = select(Reservation).order_by(Reservation.created_at.desc()).limit(limit)
+        """Get recent reservations, ordered by date (use_ymd) then by time."""
+        stmt = (
+            select(Reservation)
+            .order_by(Reservation.use_ymd.asc(), Reservation.start_time.asc())
+            .limit(limit)
+        )
         result = await session.execute(stmt)
         return list(result.scalars().all())
     

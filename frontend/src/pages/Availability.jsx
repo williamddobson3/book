@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, Clock, MapPin, BookOpen, RefreshCw, Filter } from 'lucide-react'
+import { Calendar, Clock, MapPin, BookOpen, RefreshCw, Filter, CheckCircle } from 'lucide-react'
 import { api } from '../api/client'
 
 export default function Availability() {
   const [slots, setSlots] = useState([])
+  const [reservations, setReservations] = useState([])
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
   const [filter, setFilter] = useState({
@@ -22,8 +23,18 @@ export default function Availability() {
       if (filter.date_from) params.date_from = filter.date_from
       if (filter.date_to) params.date_to = filter.date_to
 
-      const response = await api.getAvailability(params)
-      setSlots(response.slots || [])
+      // Load both availability slots and reservations
+      const [availabilityResponse, reservationsResponse] = await Promise.all([
+        api.getAvailability(params),
+        api.getReservations(100)
+      ])
+      
+      setSlots(availabilityResponse.slots || [])
+      // Flatten reservations from grouped_by_date if available
+      const reservationsList = reservationsResponse.grouped_by_date 
+        ? reservationsResponse.grouped_by_date.flatMap(group => group.reservations)
+        : reservationsResponse.reservations || []
+      setReservations(reservationsList)
     } catch (error) {
       console.error('Error loading availability:', error)
       alert('空き状況の取得に失敗しました: ' + error.message)
@@ -62,6 +73,7 @@ export default function Availability() {
       alert(`予約が完了しました！\n予約番号: ${response.reservation_number}`)
       setSelectedSlot(null)
       setBooking({ user_count: 2, event_name: '' })
+      // Reload both availability and reservations
       await loadAvailability()
     } catch (error) {
       console.error('Booking error:', error)
@@ -83,6 +95,115 @@ export default function Availability() {
   const getParkOptions = () => {
     const parks = new Set(slots.map((s) => s.bcd_name))
     return Array.from(parks).sort()
+  }
+
+  // Group slots (both available and reserved) by date FIRST, then by park, then by court
+  // Structure: Date → Park → Court → Slots (available + reserved)
+  const groupSlotsByDate = () => {
+    const grouped = {}
+    
+    // Step 1: Add available slots (mark as available)
+    slots.forEach((slot) => {
+      const dateKey = slot.use_ymd.toString()
+      
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          date: slot.use_ymd,
+          parks: {}
+        }
+      }
+      
+      // Step 2: Within each date, group by PARK (SECONDARY grouping)
+      const parkKey = slot.bcd_name
+      if (!grouped[dateKey].parks[parkKey]) {
+        grouped[dateKey].parks[parkKey] = []
+      }
+      
+      // Mark as available slot
+      grouped[dateKey].parks[parkKey].push({
+        ...slot,
+        is_reserved: false,
+        type: 'available'
+      })
+    })
+    
+    // Step 3: Add reservations (mark as reserved)
+    reservations.forEach((reservation) => {
+      const dateKey = reservation.use_ymd.toString()
+      
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {
+          date: reservation.use_ymd,
+          parks: {}
+        }
+      }
+      
+      const parkKey = reservation.bcd_name
+      if (!grouped[dateKey].parks[parkKey]) {
+        grouped[dateKey].parks[parkKey] = []
+      }
+      
+      // Mark as reserved slot
+      grouped[dateKey].parks[parkKey].push({
+        ...reservation,
+        is_reserved: true,
+        type: 'reserved'
+      })
+    })
+    
+    // Sort dates numerically (earliest date first)
+    const sortedDates = Object.keys(grouped).sort((a, b) => {
+      return parseInt(a) - parseInt(b)
+    })
+    
+    // DEBUG: Log the structure
+    console.log('Grouped by Date:', sortedDates.map(dateKey => ({
+      date: grouped[dateKey].date,
+      parks: Object.keys(grouped[dateKey].parks)
+    })))
+    
+    // Return: Date → Park → Court structure
+    return sortedDates.map(dateKey => {
+      const dateGroup = grouped[dateKey]
+      
+      // For each date, organize parks (which contain courts)
+      const parks = Object.keys(dateGroup.parks)
+        .sort() // Sort parks alphabetically
+        .map(parkName => {
+          const parkSlots = dateGroup.parks[parkName]
+          
+          // Step 3: Group slots by COURT (facility) within each park (TERTIARY grouping)
+          const courts = {}
+          parkSlots.forEach(slot => {
+            const courtKey = slot.icd_name
+            if (!courts[courtKey]) {
+              courts[courtKey] = []
+            }
+            courts[courtKey].push(slot)
+          })
+          
+          // Sort courts alphabetically and slots by time
+          const courtList = Object.keys(courts)
+            .sort()
+            .map(courtName => ({
+              name: courtName,
+              slots: courts[courtName].sort((a, b) => 
+                a.start_time_display.localeCompare(b.start_time_display)
+              )
+            }))
+          
+          return {
+            name: parkName,
+            courts: courtList,
+            totalSlots: parkSlots.length
+          }
+        })
+      
+      return {
+        date: dateGroup.date,
+        parks: parks
+      }
+    })
   }
 
   return (
@@ -152,7 +273,7 @@ export default function Availability() {
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
-            利用可能なスロット ({slots.length})
+            利用可能なスロット ({slots.length}) / 予約済み ({reservations.length})
           </h3>
         </div>
         <div className="p-6">
@@ -161,45 +282,109 @@ export default function Availability() {
               <RefreshCw className="h-8 w-8 text-gray-400 animate-spin mx-auto mb-4" />
               <p className="text-gray-500">読み込み中...</p>
             </div>
-          ) : slots.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {slots.map((slot) => (
-                <div
-                  key={slot.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => setSelectedSlot(slot)}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-2">
-                        <MapPin className="h-4 w-4 text-gray-500 mr-1" />
-                        <p className="font-semibold text-gray-900">{slot.bcd_name}</p>
+          ) : (slots.length > 0 || reservations.length > 0) ? (
+            <div className="space-y-6">
+              {groupSlotsByDate().map((dateGroup) => (
+                <div key={dateGroup.date} className="border-2 border-primary-300 rounded-lg overflow-hidden mb-6 shadow-lg">
+                  {/* DATE HEADER - TOP LEVEL (most prominent) */}
+                  <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-5 border-b-2 border-primary-700">
+                    <div className="flex items-center">
+                      <Calendar className="h-6 w-6 text-white mr-3" />
+                      <h3 className="text-2xl font-bold text-white">
+                        {formatDate(dateGroup.date)}
+                      </h3>
+                      <span className="ml-auto text-base font-semibold text-white bg-primary-700 px-3 py-1 rounded-full">
+                        {dateGroup.parks.reduce((sum, park) => sum + park.totalSlots, 0)} スロット
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Parks (within Date) */}
+                  <div className="p-6 space-y-4">
+                    {dateGroup.parks.map((park) => (
+                      <div key={park.name} className="border border-gray-200 rounded-lg p-4">
+                        {/* Park Header */}
+                        <div className="flex items-center mb-4 pb-3 border-b border-gray-200">
+                          <MapPin className="h-4 w-4 text-gray-500 mr-2" />
+                          <h5 className="font-semibold text-gray-900">{park.name}</h5>
+                          <span className="ml-auto text-sm text-gray-600">
+                            ({park.totalSlots} スロット)
+                          </span>
+                        </div>
+
+                        {/* Courts (within Park) */}
+                        <div className="space-y-3">
+                          {park.courts.map((court) => (
+                            <div key={court.name} className="pl-4 border-l-2 border-gray-300">
+                              <p className="text-sm font-medium text-gray-700 mb-2">
+                                {court.name} ({court.slots.length} スロット)
+                              </p>
+                              
+                              {/* Slots for this court - both available and reserved */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {court.slots.map((slot) => (
+                                  <div
+                                    key={slot.id || `reserved-${slot.reservation_number}`}
+                                    className={`rounded-lg p-3 transition-colors border-2 ${
+                                      slot.is_reserved
+                                        ? 'bg-blue-50 border-blue-300 hover:bg-blue-100'
+                                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between mb-2">
+                                      {slot.is_reserved ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                          予約済み
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                          利用可能
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center text-sm text-gray-600 mb-3">
+                                      <Clock className="h-4 w-4 mr-1" />
+                                      {slot.start_time_display} ~ {slot.end_time_display}
+                                    </div>
+                                    {slot.is_reserved ? (
+                                      <div className="space-y-1 text-xs">
+                                        {slot.reservation_number && (
+                                          <div className="text-gray-600">
+                                            予約番号: <span className="font-mono font-semibold">{slot.reservation_number}</span>
+                                          </div>
+                                        )}
+                                        {slot.user_count && (
+                                          <div className="text-gray-600">
+                                            利用人数: {slot.user_count}人
+                                          </div>
+                                        )}
+                                        {slot.event_name && (
+                                          <div className="text-gray-600">
+                                            {slot.event_name}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setSelectedSlot(slot)
+                                        }}
+                                        className="w-full px-3 py-1.5 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors text-sm font-medium"
+                                      >
+                                        予約する
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-600 mb-1">{slot.icd_name}</p>
-                    </div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      利用可能
-                    </span>
+                    ))}
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      {formatDate(slot.use_ymd)}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="h-4 w-4 mr-2" />
-                      {slot.start_time_display} ~ {slot.end_time_display}
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedSlot(slot)
-                    }}
-                    className="mt-3 w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
-                  >
-                    予約する
-                  </button>
                 </div>
               ))}
             </div>

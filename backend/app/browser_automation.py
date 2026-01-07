@@ -23,13 +23,23 @@ logger = logging.getLogger(__name__)
 class BrowserAutomation:
     """Handles browser automation for booking - Componentized architecture."""
     
-    def __init__(self):
-        """Initialize browser automation with componentized architecture."""
+    def __init__(self, enable_network_capture: bool = None):
+        """
+        Initialize browser automation with componentized architecture.
+        
+        Args:
+            enable_network_capture: Enable network capture during booking (default: from config)
+        """
         self.session = BrowserSession()
         self.login_handler: Optional[LoginHandler] = None
         self.search_handler: Optional[SearchHandler] = None
         self.slot_extractor = SlotExtractor()
-        self.booking_handler = BookingHandler()
+        
+        # Use config value if not explicitly provided
+        if enable_network_capture is None:
+            enable_network_capture = settings.enable_network_capture
+        
+        self.booking_handler = BookingHandler(enable_network_capture=enable_network_capture)
         self._main_page_ref = {'main_page': None}  # Use dict to allow reference updates
     
     # Backward compatibility properties
@@ -214,7 +224,8 @@ class BrowserAutomation:
             area_code: str,
             park_name: str = None,
             icd: str = None,
-            click_reserve_button: bool = True) -> Dict:
+            click_reserve_button: bool = True,
+            skip_form_expansion: bool = False) -> Dict:
         """Search for availability by filling out the search form in the browser.
         
         This method properly fills out the form as required by the server:
@@ -230,6 +241,9 @@ class BrowserAutomation:
             click_reserve_button: If True, click "予約" button when slots are found.
                                  If False, only extract slots without clicking "予約".
                                  Default is True for backward compatibility.
+            skip_form_expansion: If True, skip expanding the form (use when switching courts in same park).
+                                If False, expand form when needed (use when switching parks).
+                                Default is False for backward compatibility.
             
         Returns:
             Search results dictionary with 'success', 'page', 'slots', and 'slots_clicked_flag'
@@ -256,7 +270,7 @@ class BrowserAutomation:
         
         # Delegate to search handler
         return await self.search_handler.search_availability_via_form(
-            page, area_code, park_name, icd, click_reserve_button
+            page, area_code, park_name, icd, click_reserve_button, skip_form_expansion
         )
     
     async def click_reservation_button_if_slots_found(

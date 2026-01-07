@@ -26,6 +26,38 @@ class MonitoringService:
         """Create unique key for slot."""
         return f"{slot.get('use_ymd')}_{slot.get('bcd')}_{slot.get('icd')}_{slot.get('start_time')}_{slot.get('end_time')}"
     
+    async def _slot_exists_in_db(
+        self, session: AsyncSession, use_ymd: int, bcd: str, icd: str, start_time: int
+    ) -> bool:
+        """Check if a slot already exists in the database.
+        
+        If a slot exists in the database, it means the user previously cancelled it
+        directly on the site, so we should skip it.
+        
+        Args:
+            session: Database session
+            use_ymd: Date in YYYYMMDD format
+            bcd: Building code
+            icd: Facility code
+            start_time: Start time in HHMM format
+            
+        Returns:
+            True if slot exists in database, False otherwise
+        """
+        try:
+            stmt = select(AvailabilitySlot).where(
+                AvailabilitySlot.use_ymd == use_ymd,
+                AvailabilitySlot.bcd == bcd,
+                AvailabilitySlot.icd == icd,
+                AvailabilitySlot.start_time == start_time,
+            )
+            result = await session.execute(stmt)
+            existing = result.scalar_one_or_none()
+            return existing is not None
+        except Exception as e:
+            logger.warning(f"Error checking if slot exists in database: {e}")
+            return False
+    
     def _is_page_valid(self, page) -> bool:
         """Check if page is valid and not closed.
 
@@ -141,6 +173,17 @@ class MonitoringService:
         try:
             from app.config import settings
 
+            # Set up slot existence checker to skip slots that already exist in database
+            # (user cancelled them on the site)
+            async def slot_exists_checker(use_ymd: int, bcd: str, icd: str, start_time: int) -> bool:
+                """Check if slot exists in database."""
+                return await self._slot_exists_in_db(session, use_ymd, bcd, icd, start_time)
+            
+            # Update the search handler's slot extractor with the checker
+            if self.browser_automation and self.browser_automation.search_handler:
+                self.browser_automation.search_handler.set_slot_exists_checker(slot_exists_checker)
+                logger.info("Configured slot existence checker to skip user-cancelled slots")
+            
             all_slots = []
             total_parks = len(settings.target_parks)
 
@@ -519,93 +562,47 @@ class MonitoringService:
                                             )
                                             page = result.get("page")
                                         else:
-                                            # Change court using dropdown (much faster than full search)
+                                            # Change court using optimized method (skip form expansion)
+                                            # This avoids clicking "条件変更" when switching courts in the same park
                                             logger.info(
-                                                f"Changing to court {court_name} (ICD: {court_icd}) using dropdown..."
+                                                f"Changing to court {court_name} (ICD: {court_icd}) - using optimized method (no form expansion)..."
                                             )
                                             try:
-                                                # Wait for facility dropdown in results page
-                                                await page.wait_for_selector(
-                                                    "#facility-select",
-                                                    state="visible",
-                                                    timeout=10000,
+                                                # Use search_availability_via_form with skip_form_expansion=True
+                                                # This directly changes the court dropdown without expanding the form
+                                                result = await self.browser_automation.search_availability_via_form(
+                                                    area_code=park["area"],
+                                                    park_name=park["name"],
+                                                    icd=court_icd,
+                                                    click_reserve_button=False,  # Don't click "予約" yet - wait for all courts
+                                                    skip_form_expansion=True  # Skip "条件変更" - just change court dropdown
                                                 )
-                                                await page.select_option(
-                                                    "#facility-select", value=court_icd
-                                                )
-                                                # Wait for calendar to update
-                                                await page.wait_for_timeout(2000)
-
-                                                # Wait for AJAX to reload calendar
-                                                try:
-                                                    loading_indicator = (
-                                                        await page.query_selector(
-                                                            "#loadingweek"
-                                                        )
-                                                    )
-                                                    if loading_indicator:
-                                                        await page.wait_for_function(
-                                                            'document.getElementById("loadingweek") === null || window.getComputedStyle(document.getElementById("loadingweek")).display === "none"',
-                                                            timeout=30000,
-                                                        )
-                                                except:
-                                                    pass
-
-                                                await page.wait_for_load_state(
-                                                    "networkidle", timeout=30000
-                                                )
-                                                await page.wait_for_timeout(2000)
-                                                logger.info(
-                                                    f"Court {court_icd} selected in results page, calendar should be updated"
-                                                )
-
-                                                # Update activity time before starting slot extraction (long operation)
-                                                status_tracker.touch_activity_time()
-
-                                                # Extract slots for this court
-                                                # _extract_slots_from_weekly_calendar returns (slots, slots_clicked_flag) tuple
-                                                # Pass browser_automation instance for session checks during 6-week navigation
-                                                slots, slots_clicked_flag = (
-                                                    await self.browser_automation._extract_slots_from_weekly_calendar(
-                                                        page, browser_automation=self.browser_automation
-                                                    )
-                                                )
-                                                result = {
-                                                    "success": True,
-                                                    "slots": slots,
-                                                    "page": page,
-                                                    "slots_clicked_flag": slots_clicked_flag,
-                                                }
-
-                                                # Update activity time after slot extraction
-                                                status_tracker.touch_activity_time()
-
+                                                
+                                                slots = result.get("slots", [])
+                                                slots_clicked_flag = result.get("slots_clicked_flag", 0)
+                                                page = result.get("page", page)
+                                                
                                                 # Collect slots from this court (don't click "予約" yet)
-                                                if (
-                                                    "slots" in result
-                                                    and result["slots"]
-                                                ):
-                                                    for slot in result["slots"]:
+                                                if slots:
+                                                    for slot in slots:
                                                         slot["park_name"] = park["name"]
                                                         slot["park_priority"] = park[
                                                             "priority"
                                                         ]
                                                         park_all_slots.append(slot)
                                                     logger.info(
-                                                        f"Found {len(result['slots'])} available slots for {park['name']} - {court_name}"
+                                                        f"Found {len(slots)} available slots for {park['name']} - {court_name}"
                                                     )
                                                     park_has_slots = True
 
                                                     # Update status: found slots for this court
                                                     status_tracker.add_activity_log(
                                                         "scanning",
-                                                        f"Found {len(result['slots'])} slots at {court_name} ({park['name']})",
+                                                        f"Found {len(slots)} slots at {court_name} ({park['name']})",
                                                         {
                                                             "park": park["name"],
                                                             "court_name": court_name,
-                                                            "slots_found": len(
-                                                                result["slots"]
-                                                            ),
+                                                            "slots_found": len(slots),
                                                         },
                                                     )
 
@@ -627,9 +624,7 @@ class MonitoringService:
                                                         "total_courts": len(
                                                             courts_to_search
                                                         ),
-                                                        "slots_found": len(
-                                                            result.get("slots", [])
-                                                        ),
+                                                        "slots_found": len(slots),
                                                     },
                                                 )
                                                 # Broadcast status update after court completion

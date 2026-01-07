@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     poll_interval: int = 30
     intensive_poll_interval: float = 0.5
     
+    # Network Capture Settings (for API reverse engineering)
+    enable_network_capture: bool = True  # Set to True to capture network requests during booking
+    
     # Target Parks
     target_parks: list[dict] = [
         {"bcd": "1040", "name": "しながわ区民公園", "area": "1200_1040", "priority": 1},
